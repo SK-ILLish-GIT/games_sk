@@ -1,0 +1,48 @@
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ─── Build outputs ───────────────────────────────────────────────────────────
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# ─── Environment & secrets ───────────────────────────────────────────────────
+.env
+# Keep the example so newcomers know what to fill in
+!.env.example
+
+# ─── Prisma generated client ─────────────────────────────────────────────────
+# The generated client is large and OS-specific; it's rebuilt in Docker
+**/node_modules/.prisma/
+# But keep migration files and schema
+!**/prisma/schema.prisma
+!**/prisma/migrations/
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── Docker local data ───────────────────────────────────────────────────────
+# Docker named volumes are external; these guard against accidental local bind-mounts
+postgres_data/
+mongo_data/
+redis_data/
+
+# ─── OS / Editor ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.cursor/
+*.swp
+*.swo
+
+# ─── Test coverage ───────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
