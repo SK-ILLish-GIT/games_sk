@@ -2,6 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getApiErrorMessage } from '../api/client';
+import SpotlightCard from '../components/ui/SpotlightCard';
+import ShinyText from '../components/ui/ShinyText';
+import Squares from '../components/ui/Squares';
 
 /* ── Validation helpers ──────────────────────────────────────────── */
 function validateUsername(value: string): string | null {
@@ -134,8 +137,13 @@ export default function ProfilePage() {
   const userInitial = user.username.charAt(0).toUpperCase();
 
   return (
-    <div className="page">
-      <div className="container profile-container">
+    <div className="page" style={{ position: 'relative', overflow: 'hidden', minHeight: 'calc(100vh - 64px)' }}>
+      {/* Animated Background */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.15, pointerEvents: 'none' }}>
+        <Squares direction="diagonal" speed={0.4} squareSize={40} borderColor="var(--c-accent)" />
+      </div>
+
+      <div className="container profile-container" style={{ position: 'relative', zIndex: 1, maxWidth: '900px' }}>
 
         {/* ── Header / Avatar Section ──────────────────────────── */}
         <div className="profile-header">
@@ -143,7 +151,9 @@ export default function ProfilePage() {
             <span className="profile-avatar-initial">{userInitial}</span>
             <div className="profile-avatar-ring" />
           </div>
-          <h1 className="profile-name">{user.username}</h1>
+          <h1 className="profile-name">
+            <ShinyText text={user.username} speed={4} className="gradient-text" />
+          </h1>
           <p className="profile-email">{user.email || 'No email set'}</p>
           <div className="profile-badge-row">
             <span className="badge badge-accent">🎮 Player</span>
@@ -162,8 +172,11 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* ── Profile Info Card ────────────────────────────────── */}
-        <div className="card profile-card">
+        {/* ── Two Column Layout ────────────────────────────────── */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', alignItems: 'start' }}>
+          
+          {/* ── Profile Info Card ────────────────────────────────── */}
+          <SpotlightCard className="profile-card" spotlightColor="rgba(124, 110, 245, 0.2)">
           <div className="profile-card-header">
             <h2 className="profile-card-title">
               {isEditing ? '✏️ Edit Profile' : '👤 Profile Details'}
@@ -261,10 +274,10 @@ export default function ProfilePage() {
               </div>
             </form>
           )}
-        </div>
+        </SpotlightCard>
 
         {/* ── Danger Zone / Logout ─────────────────────────────── */}
-        <div className="card profile-card profile-danger-zone">
+        <SpotlightCard className="profile-card profile-danger-zone" spotlightColor="rgba(245, 97, 124, 0.15)">
           <div className="profile-card-header">
             <h2 className="profile-card-title">⚙️ Session</h2>
           </div>
@@ -279,7 +292,9 @@ export default function ProfilePage() {
           >
             {loggingOut ? 'Signing out…' : '🚪 Sign Out'}
           </button>
-        </div>
+        </SpotlightCard>
+
+        </div> {/* End Two Column Layout */}
 
         {/* ── Back link ────────────────────────────────────────── */}
         <div className="profile-back">

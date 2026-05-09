@@ -1,5 +1,8 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import SpotlightCard from '../components/ui/SpotlightCard';
+import ShinyText from '../components/ui/ShinyText';
+import Squares from '../components/ui/Squares';
 
 const GAMES = [
   {
@@ -23,13 +26,24 @@ const GAMES = [
 ];
 
 export default function HomePage() {
+  const navigate = useNavigate();
+
   return (
     <>
       {/* Hero */}
-      <section className="hero">
-        <div className="container">
+      <section className="hero" style={{ position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.25, pointerEvents: 'none' }}>
+          <Squares 
+            direction="diagonal"
+            speed={0.5}
+            squareSize={50}
+            borderColor="var(--c-border)" 
+            hoverFillColor="var(--c-surface2)"
+          />
+        </div>
+        <div className="container" style={{ position: 'relative', zIndex: 1 }}>
           <p className="badge badge-accent" style={{ marginBottom: '1rem' }}>🎮 GameVault — Microservices Platform</p>
-          <h1>Play. <span className="gradient-text">Compete.</span> Win.</h1>
+          <h1>Play. <ShinyText text="Compete." speed={3} className="gradient-text" /> Win.</h1>
           <p className="hero-subtitle">
             Pick a game, set a high score, and fight for the top spot on the global leaderboard.
           </p>
@@ -49,7 +63,13 @@ export default function HomePage() {
 
           <div className="game-grid">
             {GAMES.map((game) => (
-              <Link key={game.id} to={game.path} className="game-card">
+              <SpotlightCard 
+                key={game.id} 
+                spotlightColor="rgba(124, 110, 245, 0.25)" 
+                className="game-card" 
+                onClick={() => navigate(game.path)}
+                style={{ padding: 0 }}
+              >
                 <div className="game-card-cover" style={{ fontSize: '4.5rem' }}>{game.emoji}</div>
                 <div className="game-card-body">
                   <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
@@ -58,14 +78,14 @@ export default function HomePage() {
                   </div>
                   <p className="game-card-desc">{game.description}</p>
                   <div style={{ marginTop: '1rem' }}>
-                    <span className="btn btn-primary btn-sm">Play Now →</span>
+                    <span className="btn btn-primary btn-sm" style={{ width: '100%' }}>Play Now →</span>
                   </div>
                 </div>
-              </Link>
+              </SpotlightCard>
             ))}
 
             {/* Coming soon card */}
-            <div className="game-card" style={{ opacity: 0.5, cursor: 'default' }}>
+            <SpotlightCard spotlightColor="rgba(255, 255, 255, 0.05)" className="game-card" style={{ opacity: 0.5, cursor: 'default', padding: 0 }}>
               <div className="game-card-cover">🐍</div>
               <div className="game-card-body">
                 <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
@@ -74,7 +94,7 @@ export default function HomePage() {
                 </div>
                 <p className="game-card-desc">The classic arcade crawler — coming in the next release.</p>
               </div>
-            </div>
+            </SpotlightCard>
           </div>
         </div>
       </section>

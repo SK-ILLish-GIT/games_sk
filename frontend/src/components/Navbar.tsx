@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ShinyText from './ui/ShinyText';
 
 export default function Navbar() {
   const { user } = useAuth();
@@ -11,7 +12,9 @@ export default function Navbar() {
   return (
     <nav className="navbar">
       <div className="container">
-        <Link to="/" className="navbar-brand">🎮 GameVault</Link>
+        <Link to="/" className="navbar-brand">
+          🎮 <ShinyText text="GameVault" speed={5} />
+        </Link>
         <div className="navbar-links">
           <Link to="/" className={active('/')}>Home</Link>
           <Link to="/leaderboard" className={`hide-mobile ${active('/leaderboard')}`}>Leaderboard</Link>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getApiErrorMessage } from '../api/client';
+import Squares from '../components/ui/Squares';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -26,8 +27,11 @@ export function LoginPage() {
   };
 
   return (
-    <div className="auth-wrapper">
-      <div className="card auth-card">
+    <div className="auth-wrapper" style={{ position: 'relative' }}>
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.15, pointerEvents: 'none' }}>
+        <Squares direction="diagonal" speed={0.4} squareSize={40} borderColor="var(--c-accent)" />
+      </div>
+      <div className="card auth-card" style={{ position: 'relative', zIndex: 1 }}>
         <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
           <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>🎮</div>
           <h2>Welcome Back</h2>
@@ -83,8 +87,11 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="auth-wrapper">
-      <div className="card auth-card">
+    <div className="auth-wrapper" style={{ position: 'relative' }}>
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.15, pointerEvents: 'none' }}>
+        <Squares direction="diagonal" speed={0.4} squareSize={40} borderColor="var(--c-accent)" />
+      </div>
+      <div className="card auth-card" style={{ position: 'relative', zIndex: 1 }}>
         <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
           <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>🕹️</div>
           <h2>Join GameVault</h2>
