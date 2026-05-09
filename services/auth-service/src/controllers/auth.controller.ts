@@ -12,6 +12,7 @@ import {
   signAccessToken,
   verifyAccessToken,
 } from '../services/token.service';
+import { HTTP_STATUS, ROLE } from '../constants/auth.constants';
 import type { AuthenticatedRequest, HttpError } from '../types';
 
 // Forwards async errors to the global error handler, avoiding boilerplate try-catch in every handler
@@ -22,20 +23,20 @@ function wrap(fn: (req: Request, res: Response, next: NextFunction) => Promise<v
 export const register = wrap(async (req, res) => {
   const { username, email, password } = req.body;
   if (!username || !email || !password) {
-    res.status(400).json({ success: false, error: 'username, email, password required' });
+    res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, error: 'username, email, password required' });
     return;
   }
 
   const exists = await prisma.user.findFirst({ where: { OR: [{ username }, { email }] } });
   if (exists) {
     logger.warn('Registration rejected — username or email already taken', { username });
-    res.status(409).json({ success: false, error: 'Username or email already taken' });
+    res.status(HTTP_STATUS.CONFLICT).json({ success: false, error: 'Username or email already taken' });
     return;
   }
 
   const passwordHash = await bcrypt.hash(password, config.bcrypt.saltRounds);
   const user = await prisma.user.create({
-    data: { username, email, passwordHash, role: 'player' },
+    data: { username, email, passwordHash, role: ROLE.Player },
     select: { id: true, username: true, role: true },
   });
 
@@ -43,13 +44,13 @@ export const register = wrap(async (req, res) => {
   const refreshToken = await createRefreshToken(user.id);
 
   logger.info('User registered', { userId: user.id, username: user.username });
-  res.status(201).json({ success: true, data: { accessToken, refreshToken, user } });
+  res.status(HTTP_STATUS.CREATED).json({ success: true, data: { accessToken, refreshToken, user } });
 });
 
 export const login = wrap(async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
-    res.status(400).json({ success: false, error: 'username and password required' });
+    res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, error: 'username and password required' });
     return;
   }
 
@@ -57,7 +58,7 @@ export const login = wrap(async (req, res) => {
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     // Log at warn (not error) — invalid credentials are expected traffic, not a server fault
     logger.warn('Failed login attempt', { username });
-    res.status(401).json({ success: false, error: 'Invalid credentials' });
+    res.status(HTTP_STATUS.UNAUTHORIZED).json({ success: false, error: 'Invalid credentials' });
     return;
   }
 
@@ -70,7 +71,7 @@ export const login = wrap(async (req, res) => {
 
 export const refresh = wrap(async (req: Request, res: Response) => {
   const { refreshToken } = req.body as { refreshToken?: string };
-  if (!refreshToken) { res.status(400).json({ success: false, error: 'refreshToken required' }); return; }
+  if (!refreshToken) { res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, error: 'refreshToken required' }); return; }
 
   const hash   = crypto.createHash('sha256').update(refreshToken).digest('hex');
   const stored = await prisma.refreshToken.findFirst({
@@ -80,7 +81,7 @@ export const refresh = wrap(async (req: Request, res: Response) => {
 
   if (!stored || stored.expiresAt < new Date()) {
     logger.warn('Token refresh rejected — invalid or expired token', { userId: stored?.userId });
-    res.status(401).json({ success: false, error: 'Invalid or expired refresh token' });
+    res.status(HTTP_STATUS.UNAUTHORIZED).json({ success: false, error: 'Invalid or expired refresh token' });
     return;
   }
 
@@ -108,7 +109,7 @@ export const me = wrap(async (req: Request, res: Response) => {
     where:  { id: userId },
     select: { id: true, username: true, email: true, role: true, createdAt: true },
   });
-  if (!user) { res.status(404).json({ success: false, error: 'User not found' }); return; }
+  if (!user) { res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, error: 'User not found' }); return; }
   res.json({ success: true, data: user });
 });
 

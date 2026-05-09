@@ -1,16 +1,20 @@
+export { GameId, UserRole, HealthStatus } from './enums/game.enum';
+
 // ── Users ─────────────────────────────────────────────────────────
+import { UserRole } from './enums/game.enum';
+
 export interface User {
   id: string;
   username: string;
   email: string;
-  role: 'player' | 'admin';
+  role: UserRole;
   createdAt: string;
 }
 
 export interface JWTPayload {
   sub: string;       // user id
   username: string;
-  role: 'player' | 'admin';
+  role: UserRole;
   iat: number;
   exp: number;
 }
@@ -22,13 +26,13 @@ export interface AuthTokens {
 }
 
 // ── Scores / Leaderboard ─────────────────────────────────────────
-export type GameId = 'tic-tac-toe' | 'guess-number' | string;
+import { GameId } from './enums/game.enum';
 
 export interface ScoreEntry {
   id: string;
   userId: string;
   username: string;
-  gameId: GameId;
+  gameId: GameId | string;
   score: number;
   metadata?: Record<string, unknown>;
   playedAt: string;
@@ -39,23 +43,25 @@ export interface LeaderboardEntry {
   userId: string;
   username: string;
   score: number;
-  gameId?: GameId;
+  gameId?: GameId | string;
 }
 
 export interface SubmitScorePayload {
   userId: string;
   username: string;
-  gameId: GameId;
+  gameId: GameId | string;
   score: number;
   metadata?: Record<string, unknown>;
 }
 
 // ── Game Sessions ─────────────────────────────────────────────────
+import { HealthStatus } from './enums/game.enum';
+
 export type GameStatus = 'waiting' | 'active' | 'finished';
 
 export interface GameSession {
   id: string;
-  gameType: GameId;
+  gameType: GameId | string;
   players: string[];   // user IDs
   state: unknown;      // game-specific
   status: GameStatus;
@@ -80,7 +86,7 @@ export type ApiResponse<T> = ApiSuccess<T> | ApiError;
 
 // ── Health check ─────────────────────────────────────────────────
 export interface HealthCheck {
-  status: 'ok' | 'degraded';
+  status: HealthStatus;
   service: string;
   db?: string;
   redis?: string;

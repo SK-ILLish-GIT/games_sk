@@ -6,7 +6,9 @@ import axios from 'axios';
 import { config } from '../config';
 import { GuessSession, redis, gameKey, GAME_STATE_TTL } from '../db';
 import { logger } from '../utils/logger';
+import { HTTP_STATUS, ANONYMOUS_PLAYER, GUEST_PLAYER_NAME } from '../constants/game.constants';
 import * as engine from '../game/engine';
+import { Hint } from '../game/engine';
 import type { GameState, JwtUserPayload } from '../types';
 
 // Forwards async errors to the global error handler, avoiding boilerplate try-catch
@@ -43,10 +45,10 @@ async function getState(gameId: string): Promise<GameState | null> {
     secret:      doc.secret,
     attempts:    doc.attempts,
     maxAttempts: doc.maxAttempts,
-    guesses:     doc.guesses.map((g) => ({ value: g.value, hint: g.hint, timestamp: g.timestamp instanceof Date ? g.timestamp.toISOString() : (g.timestamp as string) })),
+    guesses:     doc.guesses.map((g) => ({ value: g.value, hint: g.hint as Hint, timestamp: g.timestamp instanceof Date ? g.timestamp.toISOString() : (g.timestamp as string) })),
     status:      doc.status,
-    playerId:    doc.playerId ?? 'anonymous',
-    playerName:  doc.playerName ?? 'Guest',
+    playerId:    doc.playerId    ?? ANONYMOUS_PLAYER,
+    playerName:  doc.playerName  ?? GUEST_PLAYER_NAME,
     createdAt:   doc.createdAt instanceof Date ? doc.createdAt.toISOString() : (doc.createdAt as string),
     finishedAt:  doc.finishedAt ? (doc.finishedAt instanceof Date ? doc.finishedAt.toISOString() : (doc.finishedAt as string)) : undefined,
   };
@@ -89,8 +91,8 @@ export const createGame = wrap(async (req: Request, res: Response) => {
     maxAttempts: config.game.maxAttempts,
     guesses:     [],
     status:      'active',
-    playerId:    user?.id       ?? 'anonymous',
-    playerName:  user?.username ?? 'Guest',
+    playerId:    user?.id       ?? ANONYMOUS_PLAYER,
+    playerName:  user?.username ?? GUEST_PLAYER_NAME,
     createdAt:   new Date().toISOString(),
   };
 
@@ -99,7 +101,7 @@ export const createGame = wrap(async (req: Request, res: Response) => {
 
   // Strip secret from response — clients must never see the answer
   const { secret: _secret, ...safe } = state;
-  res.status(201).json({ success: true, data: safe });
+  res.status(HTTP_STATUS.CREATED).json({ success: true, data: safe });
 });
 
 // GET /games/:id — returns current game state without revealing the secret
@@ -108,7 +110,7 @@ export const getGame = wrap(async (req: Request, res: Response) => {
   const state  = await getState(gameId);
   if (!state) {
     logger.warn('Attempted to fetch non-existent game', { gameId });
-    res.status(404).json({ success: false, error: 'Game not found' });
+    res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, error: 'Game not found' });
     return;
   }
   const { secret: _secret, ...safe } = state;
@@ -122,18 +124,18 @@ export const makeGuess = wrap(async (req: Request, res: Response) => {
 
   if (!state) {
     logger.warn('Guess on non-existent game', { gameId });
-    res.status(404).json({ success: false, error: 'Game not found' });
+    res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, error: 'Game not found' });
     return;
   }
   if (state.status !== 'active') {
     logger.warn('Guess on finished game', { gameId, status: state.status });
-    res.status(400).json({ success: false, error: 'Game already finished' });
+    res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, error: 'Game already finished' });
     return;
   }
 
   const { guess } = req.body as { guess?: unknown };
   if (typeof guess !== 'number' || guess < config.game.minGuess || guess > config.game.maxGuess) {
-    res.status(400).json({ success: false, error: `guess must be a number between ${config.game.minGuess} and ${config.game.maxGuess}` });
+    res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, error: `guess must be a number between ${config.game.minGuess} and ${config.game.maxGuess}` });
     return;
   }
 
@@ -141,7 +143,7 @@ export const makeGuess = wrap(async (req: Request, res: Response) => {
   state.attempts += 1;
   state.guesses.push({ value: guess, hint, timestamp: new Date().toISOString() });
 
-  const won  = hint === 'correct';
+  const won  = hint === Hint.Correct;
   const lost = !won && state.attempts >= state.maxAttempts;
 
   if (won || lost) {
@@ -155,7 +157,7 @@ export const makeGuess = wrap(async (req: Request, res: Response) => {
     const user = extractUser(req);
     if (user) {
       void submitScore(user.id, user.username, score, state.attempts);
-    } else if (state.playerId !== 'anonymous') {
+    } else if (state.playerId !== ANONYMOUS_PLAYER) {
       void submitScore(state.playerId, state.playerName, score, state.attempts);
     }
   }

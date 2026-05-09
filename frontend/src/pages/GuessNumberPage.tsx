@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { guessAPI, getApiErrorMessage } from '../api/client';
-import type { GuessNumberGame, GuessEntry, GuessHint } from '../types';
+import { GuessStatus, Hint } from '../enums/game.enum';
+import type { GuessNumberGame, GuessEntry } from '../types';
 
 type GameState = GuessNumberGame;
 
@@ -44,9 +45,9 @@ export default function GuessNumberPage() {
     }
   };
 
-  const hintLabel = (hint: GuessHint): string => {
-    if (hint === 'too-low') return '⬆️ Too low';
-    if (hint === 'too-high') return '⬇️ Too high';
+  const hintLabel = (hint: Hint): string => {
+    if (hint === Hint.TooLow)  return '⬆️ Too low';
+    if (hint === Hint.TooHigh) return '⬇️ Too high';
     return '✅ Correct!';
   };
 
@@ -78,13 +79,13 @@ export default function GuessNumberPage() {
         {game && (
           <>
             {/* Status banner */}
-            {game.status === 'won' && (
+            {game.status === GuessStatus.Won && (
               <div className="alert alert-success" style={{ textAlign: 'center', marginBottom: '1rem' }}>
                 🎉 You guessed it in {game.attempts} attempt{game.attempts !== 1 ? 's' : ''}!
                 Score: <strong>{Math.max(10, 100 - (game.attempts - 1) * 15)}</strong>
               </div>
             )}
-            {game.status === 'lost' && (
+            {game.status === GuessStatus.Lost && (
               <div className="alert alert-error" style={{ textAlign: 'center', marginBottom: '1rem' }}>
                 😔 Out of attempts! Better luck next time.
               </div>
@@ -100,7 +101,7 @@ export default function GuessNumberPage() {
             </div>
 
             {/* Input */}
-            {game.status === 'active' && (
+            {game.status === GuessStatus.Active && (
               <form onSubmit={submitGuess} className="guess-input-row">
                 <input
                   id="guess-input"

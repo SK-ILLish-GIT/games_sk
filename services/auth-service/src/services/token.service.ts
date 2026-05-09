@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config';
 import { prisma, redis } from '../db';
 import { logger } from '../utils/logger';
+import { refreshTokenKey } from '../constants/auth.constants';
 import type { JwtUserPayload } from '../types';
 
 // Converts a duration string (e.g. "7d", "15m") to milliseconds
@@ -35,7 +36,7 @@ export async function createRefreshToken(userId: string): Promise<string> {
 
   // Also cache in Redis for fast revocation checks; TTL mirrors DB expiry
   const ttlSeconds = Math.floor(msFromDuration(config.jwt.refreshExpiresIn) / 1000);
-  await redis.setex(`refresh:${hash}`, ttlSeconds, userId);
+  await redis.setex(refreshTokenKey(hash), ttlSeconds, userId);
 
   return raw; // Only the raw (unhashed) token is returned to the client
 }
@@ -48,7 +49,7 @@ export async function rotateRefreshToken(rawToken: string): Promise<string | nul
   const hash = crypto.createHash('sha256').update(rawToken).digest('hex');
 
   // Fast path: check Redis before hitting the DB
-  const cachedUserId = await redis.get(`refresh:${hash}`);
+  const cachedUserId = await redis.get(refreshTokenKey(hash));
 
   const stored = await prisma.refreshToken.findFirst({
     where: { tokenHash: hash, revoked: false },
@@ -56,14 +57,14 @@ export async function rotateRefreshToken(rawToken: string): Promise<string | nul
 
   if (!stored || stored.expiresAt < new Date()) {
     // Clean up stale Redis entry if DB says the token is gone/expired
-    await redis.del(`refresh:${hash}`);
+    await redis.del(refreshTokenKey(hash));
     logger.warn('Refresh token rotation failed — token invalid or expired', { userId: stored?.userId });
     return null;
   }
 
   // Revoke the consumed token before issuing the replacement
   await prisma.refreshToken.update({ where: { id: stored.id }, data: { revoked: true } });
-  await redis.del(`refresh:${hash}`);
+  await redis.del(refreshTokenKey(hash));
 
   // Prefer the Redis-cached userId (faster); fall back to DB value
   return createRefreshToken(cachedUserId || stored.userId);
@@ -76,7 +77,7 @@ export async function rotateRefreshToken(rawToken: string): Promise<string | nul
 export async function revokeAllUserTokens(userId: string): Promise<void> {
   const tokens = await prisma.refreshToken.findMany({ where: { userId, revoked: false } });
   for (const t of tokens) {
-    await redis.del(`refresh:${t.tokenHash}`);
+    await redis.del(refreshTokenKey(t.tokenHash));
   }
   await prisma.refreshToken.updateMany({ where: { userId }, data: { revoked: true } });
   logger.info('All refresh tokens revoked', { userId, count: tokens.length });

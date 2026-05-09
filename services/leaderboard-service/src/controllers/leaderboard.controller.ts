@@ -3,6 +3,7 @@ import { NextFunction, Request, Response } from 'express';
 
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { HTTP_STATUS } from '../constants/leaderboard.constants';
 import * as lb from '../services/leaderboard.service';
 
 // Forwards async errors to the global error handler
@@ -26,13 +27,13 @@ function verifyToken(req: Request): jwt.JwtPayload | null {
 export const submitScore = wrap(async (req, res) => {
   const { userId, username, gameId, score, metadata } = req.body;
   if (!userId || !username || !gameId || score === undefined) {
-    res.status(400).json({ success: false, error: 'userId, username, gameId, score required' });
+    res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, error: 'userId, username, gameId, score required' });
     return;
   }
 
   const entry = await lb.submitScore({ userId, username, gameId, score: Number(score), metadata });
   logger.info('Score submitted', { userId, username, gameId, score: Number(score) });
-  res.status(201).json({ success: true, data: entry });
+  res.status(HTTP_STATUS.CREATED).json({ success: true, data: entry });
 });
 
 // GET /leaderboard/:gameId?limit=50
@@ -62,7 +63,7 @@ export const getMyRank = wrap(async (req, res) => {
   const payload = verifyToken(req);
   if (!payload) {
     // Return 401 whether the token is missing or invalid — do not reveal which
-    res.status(401).json({ success: false, error: 'Authentication required' });
+    res.status(HTTP_STATUS.UNAUTHORIZED).json({ success: false, error: 'Authentication required' });
     return;
   }
 

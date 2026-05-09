@@ -6,9 +6,9 @@ import axios from 'axios';
 import { config } from '../config';
 import { TicTacToeSession, redis, gameKey, GAME_STATE_TTL } from '../db';
 import { logger } from '../utils/logger';
-import { GAME_CONSTANTS, HTTP_STATUS } from '../config/constants';
+import { GAME_CONSTANTS, HTTP_STATUS, ANONYMOUS_PLAYER } from '../config/constants';
 import * as engine from '../game/engine';
-import type { GameResult } from '../game/engine';
+import { Player, GameResult } from '../game/engine';
 import type { TicTacToeState, JwtUserPayload } from '../types';
 
 /**
@@ -56,15 +56,15 @@ async function getGameState(gameId: string): Promise<TicTacToeState | null> {
   return {
     gameId:        doc.gameId,
     board:         doc.board,
-    currentPlayer: doc.currentPlayer,
+    currentPlayer: doc.currentPlayer as Player,
     status:        doc.status,
     winner:        doc.winner as GameResult,
-    playerX:       doc.playerX ?? 'anonymous',
+    playerX:       doc.playerX ?? ANONYMOUS_PLAYER,
     playerO:       doc.playerO ?? null,
     moves:         doc.moves.map((m) => ({
       player:    m.player,
       position:  m.position,
-      symbol:    m.symbol,
+      symbol:    m.symbol as Player,
       timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : (m.timestamp as string),
     })),
     createdAt:     doc.createdAt instanceof Date ? doc.createdAt.toISOString() : (doc.createdAt as string),
@@ -113,10 +113,10 @@ export const createGame = wrap(async (req: Request, res: Response) => {
   const state: TicTacToeState = {
     gameId,
     board:         Array(GAME_CONSTANTS.BOARD_SIZE).fill(null) as (string | null)[],
-    currentPlayer: 'X',
+    currentPlayer: Player.X,
     status:        'active',
     winner:        null,
-    playerX:       user?.id ?? 'anonymous',
+    playerX:       user?.id ?? ANONYMOUS_PLAYER,
     playerO:       null, // A second player can join later or play locally
     moves:         [],
     createdAt:     new Date().toISOString(),
@@ -166,7 +166,7 @@ export const makeMove = wrap(async (req: Request, res: Response) => {
   }
 
   let newBoard: engine.Board;
-  let result: engine.GameResult;
+  let result: engine.GameResult | null;
 
   try {
     ({ board: newBoard, result } = engine.applyMove(state.board, position, state.currentPlayer));
@@ -189,7 +189,7 @@ export const makeMove = wrap(async (req: Request, res: Response) => {
   if (result) {
     // Game over condition met
     state.status     = 'finished';
-    state.winner     = result === 'draw' ? 'draw' : result;
+    state.winner     = result === GameResult.Draw ? GameResult.Draw : result;
     state.finishedAt = new Date().toISOString();
 
     logger.info('Game finished', { gameId, winner: state.winner, totalMoves: state.moves.length });

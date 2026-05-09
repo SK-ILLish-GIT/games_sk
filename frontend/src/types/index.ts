@@ -1,8 +1,9 @@
-// ── User identity ──────────────────────────────────────────────────
+import { UserRole, TicTacToeUIStatus, TicTacToeStatus, GuessStatus, Hint } from '../enums/game.enum';
+export { UserRole, GuessStatus, Hint } from '../enums/game.enum';
 export interface User {
   id: string;
   username: string;
-  role: 'player' | 'admin';
+  role: UserRole;
   email?: string;
 }
 
@@ -38,32 +39,35 @@ export interface LeaderboardEntry {
 
 // ── Tic-Tac-Toe ───────────────────────────────────────────────────
 export type Board = (string | null)[];
-export type TicTacToeStatus = 'idle' | 'active' | 'finished';
+// Re-exported from enums for convenience
+// TicTacToeStatus is the API status; TicTacToeUIStatus adds the 'idle' state for local UI
+export type { TicTacToeStatus } from '../enums/game.enum';
 
 export interface TicTacToeGame {
   gameId: string;
   board: Board;
   currentPlayer: 'X' | 'O';
-  status: 'active' | 'finished';
+  status: TicTacToeStatus;
   winner: string | null;
 }
 
 // ── Guess Number ─────────────────────────────────────────────────
-export type GuessHint = 'too-low' | 'too-high' | 'correct';
+// GuessHint is re-exported as Hint for backwards compat; use Hint going forward
+export type GuessHint = Hint;
 
 export interface GuessEntry {
   value: number;
-  hint: GuessHint;
+  hint: Hint;
 }
 
 export interface GuessNumberGame {
   gameId: string;
-  status: 'active' | 'won' | 'lost';
+  status: GuessStatus;
   attempts: number;
   maxAttempts: number;
   guesses: GuessEntry[];
   attemptsLeft?: number;
-  hint?: string;
+  hint?: Hint;
 }
 
 // ── Generic API wrapper ───────────────────────────────────────────

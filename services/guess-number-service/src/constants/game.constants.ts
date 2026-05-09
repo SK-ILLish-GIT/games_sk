@@ -1,13 +1,3 @@
-
-// ── Game scoring values ────────────────────────────────────────────
-export const GAME_CONSTANTS = {
-  WIN_SCORE:  10,
-  DRAW_SCORE: 3,
-  LOSE_SCORE: 0,
-  BOARD_SIZE: 9,
-  GAME_ID:    'tic-tac-toe' as const,
-} as const;
-
 // ── Standard HTTP status codes ────────────────────────────────────
 export const HTTP_STATUS = {
   OK:                  200,
@@ -20,9 +10,10 @@ export const HTTP_STATUS = {
 } as const;
 
 // ── Anonymous / guest player defaults ─────────────────────────────
-export const ANONYMOUS_PLAYER      = 'anonymous' as const;
+export const ANONYMOUS_PLAYER    = 'anonymous' as const;
+export const GUEST_PLAYER_NAME   = 'Guest'     as const;
 
 // ── Redis key helpers ─────────────────────────────────────────────
 export const REDIS_KEY_PREFIX = {
-  GAME: 'game:ttt',
+  GAME: 'game:guess',
 } as const;

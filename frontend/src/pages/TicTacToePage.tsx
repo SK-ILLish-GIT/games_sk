@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ticTacToeAPI, getApiErrorMessage } from '../api/client';
-import type { TicTacToeGame, TicTacToeStatus } from '../types';
+import { TicTacToeUIStatus, TicTacToeStatus } from '../enums/game.enum';
+import type { TicTacToeGame } from '../types';
 
-type Status = TicTacToeStatus;
+type Status   = TicTacToeUIStatus;
 type GameState = TicTacToeGame;
 
 export default function TicTacToePage() {
   const [game, setGame] = useState<GameState | null>(null);
-  const [status, setStatus] = useState<Status>('idle');
+  const [status, setStatus] = useState<Status>(TicTacToeUIStatus.Idle);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [movePending, setMovePending] = useState(false);
@@ -19,7 +20,7 @@ export default function TicTacToePage() {
     try {
       const r = await ticTacToeAPI.create();
       setGame(r.data.data);
-      setStatus('active');
+      setStatus(TicTacToeUIStatus.Active);
     } catch {
       setError('Failed to create game. Is the service running?');
     } finally {
@@ -28,14 +29,14 @@ export default function TicTacToePage() {
   };
 
   const makeMove = async (position: number) => {
-    if (!game || movePending || game.status !== 'active') return;
+    if (!game || movePending || game.status !== TicTacToeStatus.Active) return;
     if (game.board[position] !== null) return;
     setMovePending(true);
     try {
       const r = await ticTacToeAPI.move(game.gameId, position);
       const updated = r.data.data as TicTacToeGame;
       setGame(updated);
-      if (updated.status === 'finished') setStatus('finished');
+      if (updated.status === TicTacToeStatus.Finished) setStatus(TicTacToeUIStatus.Finished);
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, 'Move failed'));
     } finally {
@@ -52,7 +53,7 @@ export default function TicTacToePage() {
 
   const statusLabel = () => {
     if (!game) return '';
-    if (game.status === 'finished') return winnerLabel();
+    if (game.status === TicTacToeStatus.Finished) return winnerLabel();
     return `Player ${game.currentPlayer}'s turn`;
   };
 
@@ -67,7 +68,7 @@ export default function TicTacToePage() {
 
         {error && <div className="alert alert-error">{error}</div>}
 
-        {status === 'idle' && (
+        {status === TicTacToeUIStatus.Idle && (
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '5rem', marginBottom: '1rem' }}>⭕</div>
             <p style={{ marginBottom: '1.5rem' }}>Pass the device between two players to take turns.</p>
@@ -77,7 +78,7 @@ export default function TicTacToePage() {
           </div>
         )}
 
-        {(status === 'active' || status === 'finished') && game && (
+        {(status === TicTacToeUIStatus.Active || status === TicTacToeUIStatus.Finished) && game && (
           <>
             <div className={`ttt-status ${game.winner && game.winner !== 'draw' ? 'alert alert-success' : ''}`}>
               {statusLabel()}
@@ -90,7 +91,7 @@ export default function TicTacToePage() {
                   id={`ttt-cell-${i}`}
                   className={`ttt-cell ${cell?.toLowerCase() || ''}`}
                   onClick={() => makeMove(i)}
-                  disabled={!!cell || game.status !== 'active' || movePending}
+                  disabled={!!cell || game.status !== TicTacToeStatus.Active || movePending}
                 >
                   {cell || ''}
                 </button>
