@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getApiErrorMessage } from '../api/client';
 import Squares from '../components/ui/Squares';
+import Loader from '../components/ui/Loader';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -28,7 +29,7 @@ export function LoginPage() {
 
   return (
     <div className="auth-wrapper" style={{ position: 'relative' }}>
-      <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.15, pointerEvents: 'none' }}>
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.08, pointerEvents: 'none' }}>
         <Squares direction="diagonal" speed={0.4} squareSize={40} borderColor="var(--c-accent)" />
       </div>
       <div className="card auth-card" style={{ position: 'relative', zIndex: 1 }}>
@@ -51,8 +52,8 @@ export function LoginPage() {
               value={password} onChange={e => setPassword(e.target.value)}
               placeholder="••••••••" required />
           </div>
-          <button id="login-submit" type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign In'}
+          <button id="login-submit" type="submit" className="btn btn-primary" style={{ width: '100%', minHeight: '44px' }} disabled={loading}>
+            {loading ? <Loader size="sm" color="#fff" /> : 'Sign In'}
           </button>
         </form>
         <div className="auth-switch">
@@ -88,7 +89,7 @@ export function RegisterPage() {
 
   return (
     <div className="auth-wrapper" style={{ position: 'relative' }}>
-      <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.15, pointerEvents: 'none' }}>
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.08, pointerEvents: 'none' }}>
         <Squares direction="diagonal" speed={0.4} squareSize={40} borderColor="var(--c-accent)" />
       </div>
       <div className="card auth-card" style={{ position: 'relative', zIndex: 1 }}>
@@ -117,8 +118,8 @@ export function RegisterPage() {
               value={password} onChange={e => setPassword(e.target.value)}
               placeholder="min 8 characters" minLength={8} required />
           </div>
-          <button id="reg-submit" type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
-            {loading ? 'Creating account…' : 'Create Account'}
+          <button id="reg-submit" type="submit" className="btn btn-primary" style={{ width: '100%', minHeight: '44px' }} disabled={loading}>
+            {loading ? <Loader size="sm" color="#fff" /> : 'Create Account'}
           </button>
         </form>
         <div className="auth-switch">

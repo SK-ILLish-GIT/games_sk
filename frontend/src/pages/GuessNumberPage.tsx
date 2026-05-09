@@ -3,6 +3,10 @@ import { Link } from 'react-router-dom';
 import { guessAPI, getApiErrorMessage } from '../api/client';
 import { GuessStatus, Hint } from '../enums/game.enum';
 import type { GuessNumberGame, GuessEntry } from '../types';
+import BlurText from '../components/ui/BlurText';
+import SpotlightCard from '../components/ui/SpotlightCard';
+import StarBorder from '../components/ui/StarBorder';
+import Loader from '../components/ui/Loader';
 
 type GameState = GuessNumberGame;
 
@@ -56,37 +60,40 @@ export default function GuessNumberPage() {
 
   return (
     <div className="page">
-      <div className="container" style={{ maxWidth: 560 }}>
-        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-          <Link to="/" style={{ color: 'var(--c-text-muted)', fontSize: '0.85rem' }}>← Back to Games</Link>
-          <h1 style={{ marginTop: '0.75rem' }}>🎯 Guess the Number</h1>
+      <div className="container" style={{ maxWidth: '800px' }}>
+        <div className="page-header" style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <h1 className="page-title">
+            <BlurText text="🎯 Guess the Number" delay={50} />
+          </h1>
           <p>A secret number between 1 and 100. Fewer guesses = higher score.</p>
         </div>
 
         {error && <div className="alert alert-error">{error}</div>}
 
         {!game && (
-          <div style={{ textAlign: 'center' }}>
+          <SpotlightCard className="card" style={{ padding: '2rem', textAlign: 'center' }} spotlightColor="rgba(245, 97, 124, 0.1)">
             <div style={{ fontSize: '5rem', marginBottom: '1rem' }}>🎯</div>
             <p style={{ marginBottom: '0.5rem' }}>7 attempts. Score up to 100 points.</p>
-            <p style={{ marginBottom: '1.5rem', fontSize: '0.85rem' }}>Each extra attempt costs 15 points.</p>
-            <button id="guess-start" className="btn btn-primary" onClick={startGame} disabled={loading}>
-              {loading ? 'Starting…' : 'Start Game'}
+            <p style={{ marginBottom: '1.5rem', fontSize: '0.85rem', color: 'var(--c-text-muted)' }}>Each extra attempt costs 15 points.</p>
+            <button id="guess-start" className="btn btn-primary" onClick={startGame} disabled={loading} style={{ minWidth: 140 }}>
+              {loading ? <Loader size="sm" color="#fff" /> : 'Start Game'}
             </button>
-          </div>
+          </SpotlightCard>
         )}
 
         {game && (
-          <>
+          <SpotlightCard className="card" style={{ padding: '2rem' }} spotlightColor="rgba(245, 97, 124, 0.1)">
             {/* Status banner */}
             {game.status === GuessStatus.Won && (
-              <div className="alert alert-success" style={{ textAlign: 'center', marginBottom: '1rem' }}>
-                🎉 You guessed it in {game.attempts} attempt{game.attempts !== 1 ? 's' : ''}!
-                Score: <strong>{Math.max(10, 100 - (game.attempts - 1) * 15)}</strong>
-              </div>
+              <StarBorder color="var(--c-green)" speed="3s" style={{ width: '100%', marginBottom: '1.5rem' }}>
+                <div style={{ textAlign: 'center', padding: '1rem', background: 'var(--c-surface)', borderRadius: 'calc(var(--radius-sm) - 1px)' }}>
+                  <div style={{ fontSize: '1.1rem', marginBottom: '0.25rem' }}>🎉 You guessed it in {game.attempts} attempt{game.attempts !== 1 ? 's' : ''}!</div>
+                  <div style={{ fontSize: '1.25rem' }}>Score: <strong style={{ color: 'var(--c-green)' }}>{Math.max(10, 100 - (game.attempts - 1) * 15)}</strong></div>
+                </div>
+              </StarBorder>
             )}
             {game.status === GuessStatus.Lost && (
-              <div className="alert alert-error" style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              <div className="alert alert-error" style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                 😔 Out of attempts! Better luck next time.
               </div>
             )}
@@ -114,8 +121,8 @@ export default function GuessNumberPage() {
                   disabled={submitting}
                   autoFocus
                 />
-                <button id="guess-submit" type="submit" className="btn btn-primary" disabled={submitting || !guessInput}>
-                  {submitting ? '…' : 'Guess'}
+                <button id="guess-submit" type="submit" className="btn btn-primary" disabled={submitting || !guessInput} style={{ minWidth: 90 }}>
+                  {submitting ? <Loader size="sm" color="#fff" /> : 'Guess'}
                 </button>
               </form>
             )}
@@ -132,15 +139,15 @@ export default function GuessNumberPage() {
               </ul>
             )}
 
-            <div style={{ textAlign: 'center', marginTop: '1.5rem', display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button id="guess-new" className="btn btn-primary" onClick={startGame} disabled={loading}>
-                {loading ? '…' : '🔄 New Game'}
+            <div style={{ textAlign: 'center', marginTop: '2rem', display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button id="guess-new" className="btn btn-primary" onClick={startGame} disabled={loading} style={{ minWidth: 140 }}>
+                {loading ? <Loader size="sm" color="#fff" /> : '🔄 New Game'}
               </button>
               <Link to="/leaderboard">
                 <button className="btn btn-secondary">🏆 Leaderboard</button>
               </Link>
             </div>
-          </>
+          </SpotlightCard>
         )}
       </div>
     </div>

@@ -1,0 +1,19 @@
+.blur-text-container {
+  display: inline-flex;
+  flex-wrap: wrap;
+}
+
+.blur-text-word {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(10px);
+  transform: translate3d(0, 10px, 0);
+  transition: opacity 0.8s ease, filter 0.8s ease, transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: opacity, filter, transform;
+}
+
+.blur-text-word.visible {
+  opacity: 1;
+  filter: blur(0);
+  transform: translate3d(0, 0, 0);
+}

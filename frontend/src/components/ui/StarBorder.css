@@ -1,0 +1,39 @@
+.star-border-container {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  padding: 1px; /* The border width */
+  z-index: 1;
+}
+
+.star-border-glow {
+  position: absolute;
+  inset: -100%;
+  width: 300%;
+  height: 300%;
+  left: -100%;
+  top: -100%;
+  animation: star-spin linear infinite;
+  z-index: -2;
+}
+
+@keyframes star-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.star-border-content {
+  background: var(--c-surface);
+  height: 100%;
+  width: 100%;
+  border-radius: calc(var(--radius-sm) - 1px);
+  z-index: -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

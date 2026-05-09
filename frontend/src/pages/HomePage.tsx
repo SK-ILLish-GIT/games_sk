@@ -32,7 +32,7 @@ export default function HomePage() {
     <>
       {/* Hero */}
       <section className="hero" style={{ position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.25, pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.08, pointerEvents: 'none' }}>
           <Squares 
             direction="diagonal"
             speed={0.5}
@@ -65,7 +65,7 @@ export default function HomePage() {
             {GAMES.map((game) => (
               <SpotlightCard 
                 key={game.id} 
-                spotlightColor="rgba(124, 110, 245, 0.25)" 
+                spotlightColor="var(--c-accent-glow)" 
                 className="game-card" 
                 onClick={() => navigate(game.path)}
                 style={{ padding: 0 }}

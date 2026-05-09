@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { leaderboardAPI } from '../api/client';
 import type { LeaderboardEntry } from '../types';
+import BlurText from '../components/ui/BlurText';
+import SpotlightCard from '../components/ui/SpotlightCard';
+import StarBorder from '../components/ui/StarBorder';
+import Loader from '../components/ui/Loader';
 
 const GAMES = ['global', 'tic-tac-toe', 'guess-number'];
 const GAME_LABELS: Record<string, string> = {
@@ -37,58 +41,79 @@ export default function LeaderboardPage() {
   return (
     <div className="page">
       <div className="container">
-        <div className="page-header">
+        <div className="page-header" style={{ marginBottom: '3rem' }}>
           <div>
-            <h1 className="page-title">🏆 Leaderboard</h1>
-            <p>Best scores across every game — compete for the top spot</p>
+            <h1 className="page-title">
+              <BlurText text="🏆 Global Leaderboard" delay={100} />
+            </h1>
+            <p style={{ marginTop: '0.5rem', fontSize: '1.1rem' }}>Best scores across every game — compete for the top spot</p>
           </div>
         </div>
 
         {/* Game selector tabs */}
-        <div className="flex gap-sm" style={{ marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-          {GAMES.map(g => (
-            <button
-              key={g}
-              id={`lb-tab-${g}`}
-              className={`btn ${activeGame === g ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-              onClick={() => setActiveGame(g)}
-            >
-              {GAME_LABELS[g] || g}
-            </button>
-          ))}
+        <div className="flex gap-sm" style={{ marginBottom: '2rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+          {GAMES.map(g => {
+            const isActive = activeGame === g;
+            const btn = (
+              <button
+                key={g}
+                id={`lb-tab-${g}`}
+                className={`btn ${isActive ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                onClick={() => setActiveGame(g)}
+                style={{
+                  borderRadius: isActive ? 'calc(var(--radius-sm) - 1px)' : 'var(--radius-sm)',
+                  whiteSpace: 'nowrap',
+                  boxShadow: 'none',
+                }}
+              >
+                {GAME_LABELS[g] || g}
+              </button>
+            );
+
+            return isActive ? (
+              <StarBorder key={g} color="var(--c-accent)" speed="3s" style={{ borderRadius: 'var(--radius-sm)' }}>
+                {btn}
+              </StarBorder>
+            ) : btn;
+          })}
         </div>
 
-        <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
-          {loading && <div className="spinner" />}
+        <SpotlightCard className="card" style={{ padding: '0', overflow: 'hidden' }} spotlightColor="rgba(255, 255, 255, 0.05)">
+          {loading && <Loader />}
           {error && <div className="alert alert-error" style={{ margin: '1rem' }}>{error}</div>}
           {!loading && !error && entries.length === 0 && (
-            <p style={{ padding: '2rem', textAlign: 'center' }}>No scores yet — play a game to appear here!</p>
+            <div style={{ padding: '4rem 2rem', textAlign: 'center', color: 'var(--c-text-muted)' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem', opacity: 0.5 }}>🎮</div>
+              <p>No scores yet — play a game to appear here!</p>
+            </div>
           )}
           {!loading && entries.length > 0 && (
-            <table className="lb-table">
-              <thead>
-                <tr>
-                  <th style={{ width: 60 }}>#</th>
-                  <th>Player</th>
-                  <th style={{ textAlign: 'right', paddingRight: '1.25rem' }}>Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map((e) => (
-                  <tr key={e.userId}>
-                    <td className={`lb-rank ${e.rank <= 3 ? `lb-rank-${e.rank}` : ''}`}>
-                      {medalEmoji(e.rank)}
-                    </td>
-                    <td>
-                      <span style={{ fontWeight: 600 }}>{e.username}</span>
-                    </td>
-                    <td className="lb-score">{e.score.toLocaleString()}</td>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="lb-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 80, textAlign: 'center' }}>Rank</th>
+                    <th>Player</th>
+                    <th style={{ textAlign: 'right', paddingRight: '1.5rem' }}>Score</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {entries.map((e) => (
+                    <tr key={e.userId} className="lb-row">
+                      <td className={`lb-rank ${e.rank <= 3 ? `lb-rank-${e.rank}` : ''}`} style={{ textAlign: 'center' }}>
+                        {medalEmoji(e.rank)}
+                      </td>
+                      <td>
+                        <span style={{ fontWeight: 600, fontSize: '1.05rem' }}>{e.username}</span>
+                      </td>
+                      <td className="lb-score" style={{ paddingRight: '1.5rem' }}>{e.score.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-        </div>
+        </SpotlightCard>
       </div>
     </div>
   );

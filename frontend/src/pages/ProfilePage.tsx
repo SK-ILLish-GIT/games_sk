@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { getApiErrorMessage } from '../api/client';
 import SpotlightCard from '../components/ui/SpotlightCard';
 import ShinyText from '../components/ui/ShinyText';
@@ -24,6 +25,7 @@ function validateEmail(value: string): string | null {
 /* ── Profile Page ────────────────────────────────────────────────── */
 export default function ProfilePage() {
   const { user, loading: authLoading, logout, updateProfile } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -139,7 +141,7 @@ export default function ProfilePage() {
   return (
     <div className="page" style={{ position: 'relative', overflow: 'hidden', minHeight: 'calc(100vh - 64px)' }}>
       {/* Animated Background */}
-      <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.15, pointerEvents: 'none' }}>
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.08, pointerEvents: 'none' }}>
         <Squares direction="diagonal" speed={0.4} squareSize={40} borderColor="var(--c-accent)" />
       </div>
 
@@ -176,7 +178,7 @@ export default function ProfilePage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', alignItems: 'start' }}>
           
           {/* ── Profile Info Card ────────────────────────────────── */}
-          <SpotlightCard className="profile-card" spotlightColor="rgba(124, 110, 245, 0.2)">
+          <SpotlightCard className="profile-card" spotlightColor="var(--c-accent-glow)">
           <div className="profile-card-header">
             <h2 className="profile-card-title">
               {isEditing ? '✏️ Edit Profile' : '👤 Profile Details'}
@@ -276,8 +278,30 @@ export default function ProfilePage() {
           )}
         </SpotlightCard>
 
+        {/* ── Preferences ─────────────────────────────── */}
+        <SpotlightCard className="profile-card" spotlightColor="var(--c-accent2-glow)">
+          <div className="profile-card-header">
+            <h2 className="profile-card-title">🎨 Preferences</h2>
+          </div>
+          
+          <div className="theme-switch-wrapper">
+            <span className="theme-switch-label">
+              {theme === 'dark' ? '🌙 Dark Mode' : '☀️ Light Mode'}
+            </span>
+            <label className="theme-switch">
+              <input 
+                type="checkbox" 
+                checked={theme === 'light'} 
+                onChange={toggleTheme} 
+                aria-label="Toggle theme"
+              />
+              <span className="theme-slider"></span>
+            </label>
+          </div>
+        </SpotlightCard>
+
         {/* ── Danger Zone / Logout ─────────────────────────────── */}
-        <SpotlightCard className="profile-card profile-danger-zone" spotlightColor="rgba(245, 97, 124, 0.15)">
+        <SpotlightCard className="profile-card profile-danger-zone" spotlightColor="rgba(248, 113, 113, 0.15)">
           <div className="profile-card-header">
             <h2 className="profile-card-title">⚙️ Session</h2>
           </div>

@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import BlurText from '../components/ui/BlurText';
+import SpotlightCard from '../components/ui/SpotlightCard';
 
 /* ─────────────────────────────────────────────────────
    Data
@@ -185,7 +187,9 @@ export default function ArchitecturePage() {
         {/* ── Header ── */}
         <div style={{ marginBottom: '3rem' }}>
           <SectionLabel>System Design</SectionLabel>
-          <h1 className="page-title">Platform Architecture</h1>
+          <h1 className="page-title">
+            <BlurText text="Platform Architecture" delay={100} />
+          </h1>
           <p style={{ maxWidth: 640, marginTop: '0.5rem' }}>
             A production-style microservices platform where each game is a fully
             independent service — isolated deployment, separate database, its own cache.
@@ -194,7 +198,7 @@ export default function ArchitecturePage() {
         </div>
 
         {/* ── Architecture Diagram ── */}
-        <div className="card" style={{ marginBottom: '2rem', overflow: 'hidden' }}>
+        <SpotlightCard className="card" style={{ marginBottom: '2rem', overflow: 'hidden' }} spotlightColor="rgba(124, 110, 245, 0.15)">
           <SectionLabel>Request Flow</SectionLabel>
           <h2 style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>How a request travels through the system</h2>
 
@@ -275,7 +279,7 @@ export default function ArchitecturePage() {
               Click a service above to see its endpoints and responsibilities
             </p>
           )}
-        </div>
+        </SpotlightCard>
 
         {/* ── Services Grid ── */}
         <div style={{ marginBottom: '3rem' }}>
@@ -283,7 +287,7 @@ export default function ArchitecturePage() {
           <h2 style={{ marginBottom: '1.25rem' }}>What each service owns</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
             {SERVICES.map(s => (
-              <div key={s.name} className="card" style={{ borderColor: `${s.color}44` }}>
+              <SpotlightCard key={s.name} className="card" style={{ borderColor: `${s.color}44` }} spotlightColor={`${s.color}22`}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                   <div>
                     <span style={{ fontSize: '1.5rem' }}>{s.icon}</span>
@@ -293,7 +297,7 @@ export default function ArchitecturePage() {
                 </div>
                 <p style={{ fontSize: '0.875rem', marginBottom: '0.75rem' }}>{s.desc}</p>
                 <p style={{ fontSize: '0.7rem', color: 'var(--c-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>DB — {s.db}</p>
-              </div>
+              </SpotlightCard>
             ))}
           </div>
         </div>
@@ -304,7 +308,7 @@ export default function ArchitecturePage() {
           <h2 style={{ marginBottom: '1.25rem' }}>Technologies & why they were chosen</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
             {TECH_STACK.map(t => (
-              <div key={t.name} className="card" style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+              <SpotlightCard key={t.name} className="card" style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }} spotlightColor="rgba(255, 255, 255, 0.05)">
                 <span style={{ fontSize: '1.75rem', flexShrink: 0 }}>{t.icon}</span>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
@@ -313,7 +317,7 @@ export default function ArchitecturePage() {
                   </div>
                   <p style={{ fontSize: '0.875rem' }}>{t.desc}</p>
                 </div>
-              </div>
+              </SpotlightCard>
             ))}
           </div>
         </div>
@@ -324,7 +328,7 @@ export default function ArchitecturePage() {
           <h2 style={{ marginBottom: '1.25rem' }}>Key design choices & tradeoffs</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {DESIGN_DECISIONS.map(d => (
-              <div key={d.title} className="card" style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
+              <SpotlightCard key={d.title} className="card" style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }} spotlightColor="rgba(124, 110, 245, 0.1)">
                 <span style={{
                   fontSize: '1.5rem', flexShrink: 0,
                   width: 48, height: 48,
@@ -336,7 +340,7 @@ export default function ArchitecturePage() {
                   <p style={{ fontWeight: 700, color: 'var(--c-text)', margin: '0 0 0.4rem', fontSize: '1rem' }}>{d.title}</p>
                   <p style={{ fontSize: '0.9rem' }}>{d.body}</p>
                 </div>
-              </div>
+              </SpotlightCard>
             ))}
           </div>
         </div>
