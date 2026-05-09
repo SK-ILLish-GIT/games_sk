@@ -82,7 +82,7 @@ async function start() {
       }
     }
 
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`[auth-service] Listening on port ${PORT}`);
     });
   } catch (err) {

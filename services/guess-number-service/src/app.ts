@@ -35,7 +35,7 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 
 async function start() {
   await connect();
-  app.listen(PORT, () => console.log(`[guess-number-service] Listening on port ${PORT}`));
+  app.listen(PORT, '0.0.0.0', () => console.log(`[guess-number-service] Listening on port ${PORT}`));
 }
 
 process.on('SIGTERM', async () => { await disconnect(); process.exit(0); });

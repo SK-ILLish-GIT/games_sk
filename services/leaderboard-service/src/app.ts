@@ -35,7 +35,7 @@ async function start() {
   const { execSync } = await import('child_process');
   try { execSync('npx prisma migrate deploy', { stdio: 'inherit' }); } catch { /* migrations may already be up */ }
 
-  app.listen(PORT, () => console.log(`[leaderboard-service] Listening on port ${PORT}`));
+  app.listen(PORT, '0.0.0.0', () => console.log(`[leaderboard-service] Listening on port ${PORT}`));
 }
 
 process.on('SIGTERM', async () => { await disconnect(); process.exit(0); });

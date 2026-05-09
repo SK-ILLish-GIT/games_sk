@@ -39,6 +39,7 @@ model RefreshToken {
 model Score {
   id       String   @id @default(uuid())
   userId   String   @map("user_id")
+  username String
   gameId   String   @map("game_id")
   score    Int
   metadata Json?
