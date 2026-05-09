@@ -1,13 +1,16 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import authRoutes from './routes/auth.routes';
-import { connectDatabases, disconnectDatabases, prisma, redis } from './db';
 import fs from 'fs';
 import path from 'path';
 
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+
+import { config } from './config';
+import { connectDatabases, disconnectDatabases, prisma, redis } from './db';
+import { logger } from './utils/logger';
+import authRoutes from './routes/auth.routes';
+
 const app = express();
-const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // ── Middleware ─────────────────────────────────────────────────────
 app.use(helmet());
@@ -34,15 +37,21 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-// ── Error handler ──────────────────────────────────────────────────
+// ── Global Error Handler ───────────────────────────────────────────
+// Catches errors forwarded by the `wrap` helper in controllers.
+// 4xx errors are client mistakes; only 5xx are true server failures.
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const status = err.status || 500;
   const message = status < 500 ? err.message : 'Internal server error';
-  console.error('[auth-service]', err);
+  if (status >= 500) {
+    logger.error('Unhandled server error', err);
+  } else {
+    logger.warn('Client error', { status, message: err.message, code: err.code });
+  }
   res.status(status).json({ success: false, error: message, code: err.code });
 });
 
-// ── Start ──────────────────────────────────────────────────────────
+// ── Startup ────────────────────────────────────────────────────────
 async function start() {
   try {
     await connectDatabases();
@@ -55,17 +64,19 @@ async function start() {
     const hasMigrations = fs.existsSync(migrationsDir) && fs.readdirSync(migrationsDir).length > 0;
 
     if (hasMigrations) {
+      logger.info('Running prisma migrate deploy');
       try {
         execSync('npx prisma migrate deploy', { stdio: 'inherit' });
       } catch (err: any) {
         const msg = String(err && err.message ? err.message : err);
-        console.error('[auth-service] prisma migrate deploy failed:', msg);
+        logger.error('prisma migrate deploy failed', err);
         if (msg.includes('P3005')) {
-          console.warn('[auth-service] Detected P3005; falling back to `prisma db push`.');
+          // P3005 means the DB is non-empty but has no migration history; fall back to push
+          logger.warn('Detected P3005 — falling back to prisma db push');
           try {
             execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit' });
           } catch (err2: any) {
-            console.error('[auth-service] prisma db push also failed:', String(err2 && err2.message ? err2.message : err2));
+            logger.error('prisma db push also failed', err2);
             throw err2;
           }
         } else {
@@ -73,25 +84,27 @@ async function start() {
         }
       }
     } else {
-      console.log('[auth-service] No migrations found; using `prisma db push` to sync schema.');
+      logger.info('No migrations found — using prisma db push to sync schema');
       try {
         execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit' });
       } catch (err: any) {
-        console.error('[auth-service] prisma db push failed:', String(err && err.message ? err.message : err));
+        logger.error('prisma db push failed', err);
         throw err;
       }
     }
 
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`[auth-service] Listening on port ${PORT}`);
+    app.listen(config.port, '0.0.0.0', () => {
+      logger.info(`Listening on port ${config.port}`, { port: config.port });
     });
   } catch (err) {
-    console.error('[auth-service] Startup failed:', err);
+    logger.error('Startup failed — exiting', err);
     process.exit(1);
   }
 }
 
+// Graceful shutdown: release DB connections before the container stops
 process.on('SIGTERM', async () => {
+  logger.info('SIGTERM received — shutting down gracefully');
   await disconnectDatabases();
   process.exit(0);
 });

@@ -2,6 +2,11 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '../db';
 import { signAccessToken, createRefreshToken, rotateRefreshToken, revokeAllUserTokens } from './token.service';
 
+// NOTE: The auth controller handles all registration and login flows directly.
+// This service layer exists as an alternative entrypoint but the `refresh` function
+// below is intentionally not wired — token rotation is handled in auth.controller.ts
+// using a two-step lookup that needs user data alongside the new token.
+
 export async function register(username: string, email: string, password: string) {
   const exists = await prisma.user.findFirst({
     where: { OR: [{ username }, { email }] },
@@ -37,17 +42,9 @@ export async function login(usernameOrEmail: string, password: string) {
   return { accessToken, refreshToken, user: { id: user.id, username: user.username, role: user.role } };
 }
 
-export async function refresh(rawRefreshToken: string) {
-  const newRaw = await rotateRefreshToken(rawRefreshToken);
-  if (!newRaw) {
-    throw Object.assign(new Error('Invalid or expired refresh token'), { code: 'INVALID_REFRESH_TOKEN', status: 401 });
-  }
-
-  // Fetch user from new token's stored userId
-  // At this point, the old hash is revoked; we stored a new one.
-  // We'll need another lookup — simplest: decode from new token hash lookup.
-  // Alternative: return userId from rotate. Let's refactor token service.
-  throw new Error('Use the rotate flow in controller — see controller comment');
+// Not used in practice — see note at top of file
+export async function refresh(_rawRefreshToken: string) {
+  throw new Error('Use the rotate flow in auth.controller — token.service.rotateRefreshToken requires a separate user lookup');
 }
 
 export async function logout(userId: string) {

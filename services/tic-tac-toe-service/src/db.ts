@@ -1,5 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import Redis from 'ioredis';
+import { config } from './config';
+import { logger } from './utils/logger';
 
 // ── MongoDB ────────────────────────────────────────────────────────
 export interface ITicTacToeSession extends Document {
@@ -31,18 +33,18 @@ const TicTacToeSessionSchema = new Schema<ITicTacToeSession>({
 export const TicTacToeSession = mongoose.model<ITicTacToeSession>('TicTacToeSession', TicTacToeSessionSchema);
 
 // ── Redis ─────────────────────────────────────────────────────────
-export const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+export const redis = new Redis(config.db.redisUrl, {
   lazyConnect: true,
   retryStrategy: (times) => Math.min(times * 100, 3000),
 });
 
-export const GAME_STATE_TTL = 3600; // 1 hour
+export const GAME_STATE_TTL = config.game.stateTtl;
 export const gameKey = (id: string) => `game:ttt:${id}`;
 
 export async function connect() {
-  await mongoose.connect(process.env.MONGO_URL || 'mongodb://localhost:27017/games');
+  await mongoose.connect(config.db.mongoUri);
   await redis.connect();
-  console.log('[tic-tac-toe-service] MongoDB + Redis connected');
+  logger.info('MongoDB + Redis connected', { service: 'tic-tac-toe-service' });
 }
 
 export async function disconnect() {

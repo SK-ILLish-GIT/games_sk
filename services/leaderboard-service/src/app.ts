@@ -1,18 +1,23 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import lbRoutes from './routes/leaderboard.routes';
+
+import { config } from './config';
 import { connect, disconnect, prisma, redis } from './db';
+import { logger } from './utils/logger';
+import lbRoutes from './routes/leaderboard.routes';
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3002', 10);
 
+// ── Middleware ─────────────────────────────────────────────────────
 app.use(helmet());
 app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '100kb' }));
 
+// ── Routes ─────────────────────────────────────────────────────────
 app.use('/', lbRoutes);
 
+// ── Health Check ───────────────────────────────────────────────────
 app.get('/health', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -23,20 +28,46 @@ app.get('/health', async (_req, res) => {
   }
 });
 
+// ── Global Error Handler ───────────────────────────────────────────
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('[leaderboard-service]', err);
-  res.status(err.status || 500).json({ success: false, error: err.message || 'Internal server error' });
+  const status = err.status || 500;
+  if (status >= 500) {
+    logger.error('Unhandled server error', err);
+  } else {
+    logger.warn('Client error', { status, message: err.message });
+  }
+  res.status(status).json({ success: false, error: err.message || 'Internal server error' });
 });
 
+// ── Startup ────────────────────────────────────────────────────────
 async function start() {
-  await connect();
+  try {
+    await connect();
 
-  // Run DB migrations using shared auth-service schema (same PG instance)
-  const { execSync } = await import('child_process');
-  try { execSync('npx prisma migrate deploy', { stdio: 'inherit' }); } catch { /* migrations may already be up */ }
+    // Deploy any pending Prisma migrations on startup (safe to run on every boot)
+    const { execSync } = await import('child_process');
+    logger.info('Running prisma migrate deploy');
+    try {
+      execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+    } catch (err) {
+      // Non-fatal: migrations may already be up-to-date or managed by auth-service
+      logger.warn('prisma migrate deploy had a non-zero exit — migrations may already be applied');
+    }
 
-  app.listen(PORT, '0.0.0.0', () => console.log(`[leaderboard-service] Listening on port ${PORT}`));
+    app.listen(config.port, '0.0.0.0', () => {
+      logger.info(`Listening on port ${config.port}`, { port: config.port });
+    });
+  } catch (err) {
+    logger.error('Startup failed — exiting', err);
+    process.exit(1);
+  }
 }
 
-process.on('SIGTERM', async () => { await disconnect(); process.exit(0); });
+// Graceful shutdown: release DB connections before the container stops
+process.on('SIGTERM', async () => {
+  logger.info('SIGTERM received — shutting down gracefully');
+  await disconnect();
+  process.exit(0);
+});
+
 start();

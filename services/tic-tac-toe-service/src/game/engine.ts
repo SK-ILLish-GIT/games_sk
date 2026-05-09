@@ -1,4 +1,5 @@
 // Pure game logic — no I/O, fully testable
+import { GAME_CONSTANTS } from '../config/constants';
 
 export type Board = (string | null)[];
 export type Player = 'X' | 'O';
@@ -37,7 +38,7 @@ export function nextPlayer(current: Player): Player {
 }
 
 export function scoreForResult(result: GameResult, playerSymbol: Player): number {
-  if (result === playerSymbol) return 10;
-  if (result === 'draw') return 3;
-  return 0;
+  if (result === playerSymbol) return GAME_CONSTANTS.WIN_SCORE;
+  if (result === 'draw') return GAME_CONSTANTS.DRAW_SCORE;
+  return GAME_CONSTANTS.LOSE_SCORE;
 }

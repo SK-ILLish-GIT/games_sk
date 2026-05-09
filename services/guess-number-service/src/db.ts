@@ -1,9 +1,12 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import Redis from 'ioredis';
 
+import { config } from './config';
+import { logger } from './utils/logger';
+
 export interface IGuessSession extends Document {
   gameId: string;
-  secret: number;
+  secret: number;       // Never exposed to the client
   attempts: number;
   maxAttempts: number;
   guesses: { value: number; hint: 'too-low' | 'too-high' | 'correct'; timestamp: Date }[];
@@ -18,7 +21,7 @@ const GuessSessionSchema = new Schema<IGuessSession>({
   gameId:      { type: String, required: true, unique: true, index: true },
   secret:      { type: Number, required: true },
   attempts:    { type: Number, default: 0 },
-  maxAttempts: { type: Number, default: 7 },
+  maxAttempts: { type: Number, default: config.game.maxAttempts },
   guesses:     [{ value: Number, hint: String, timestamp: { type: Date, default: Date.now } }],
   status:      { type: String, enum: ['active', 'won', 'lost'], default: 'active' },
   playerId:    { type: String },
@@ -29,21 +32,24 @@ const GuessSessionSchema = new Schema<IGuessSession>({
 
 export const GuessSession = mongoose.model<IGuessSession>('GuessSession', GuessSessionSchema);
 
-export const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+export const redis = new Redis(config.db.redisUrl, {
   lazyConnect: true,
+  // Exponential-like backoff capped at 3s to avoid hammering Redis on restarts
   retryStrategy: (times) => Math.min(times * 100, 3000),
 });
 
-export const GAME_STATE_TTL = 3600;
+// Cache TTL mirrors config (default 1 hour)
+export const GAME_STATE_TTL = config.game.stateTtl;
 export const gameKey = (id: string) => `game:guess:${id}`;
 
 export async function connect() {
-  await mongoose.connect(process.env.MONGO_URL || 'mongodb://localhost:27017/games');
+  await mongoose.connect(config.db.mongoUri);
   await redis.connect();
-  console.log('[guess-number-service] MongoDB + Redis connected');
+  logger.info('MongoDB + Redis connected');
 }
 
 export async function disconnect() {
   await mongoose.disconnect();
   redis.quit();
+  logger.info('MongoDB + Redis disconnected');
 }
