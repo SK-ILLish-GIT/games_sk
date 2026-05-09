@@ -8,6 +8,34 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         String   @default("player")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  refreshTokens RefreshToken[]
+  scores        Score[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @map("token_hash")
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
 model Score {
   id       String   @id @default(uuid())
   userId   String   @map("user_id")
@@ -16,6 +44,8 @@ model Score {
   score    Int
   metadata Json?
   playedAt DateTime @default(now()) @map("played_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([gameId, score(sort: Desc)])
   @@index([gameId, userId])
