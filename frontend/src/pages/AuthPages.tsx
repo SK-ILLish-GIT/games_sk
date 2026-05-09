@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getApiErrorMessage } from '../api/client';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -17,8 +18,8 @@ export function LoginPage() {
     try {
       await login(username, password);
       navigate('/');
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Login failed. Please try again.');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Login failed. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -74,8 +75,8 @@ export function RegisterPage() {
     try {
       await register(username, email, password);
       navigate('/');
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Registration failed.');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Registration failed.'));
     } finally {
       setLoading(false);
     }

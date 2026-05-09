@@ -1,4 +1,5 @@
-import axios from 'axios';
+import axios, { type AxiosError } from 'axios';
+import type { ApiErrorBody, AuthTokenResponse, RefreshTokenResponse } from '../types';
 
 const api = axios.create({ baseURL: '/api' });
 
@@ -12,17 +13,20 @@ api.interceptors.request.use((config) => {
 // Auto-refresh on 401
 api.interceptors.response.use(
   (res) => res,
-  async (err) => {
-    if (err.response?.status === 401 && !err.config._retry) {
-      err.config._retry = true;
+  async (err: AxiosError) => {
+    const originalRequest = err.config as typeof err.config & { _retry?: boolean };
+    if (err.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
       const refreshToken = localStorage.getItem('refreshToken');
       if (refreshToken) {
         try {
-          const { data } = await axios.post('/api/auth/refresh', { refreshToken });
+          const { data } = await axios.post<{ data: RefreshTokenResponse }>('/api/auth/refresh', { refreshToken });
           localStorage.setItem('accessToken', data.data.accessToken);
           localStorage.setItem('refreshToken', data.data.refreshToken);
-          err.config.headers.Authorization = `Bearer ${data.data.accessToken}`;
-          return api(err.config);
+          if (originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${data.data.accessToken}`;
+          }
+          return api(originalRequest);
         } catch {
           localStorage.clear();
           window.location.href = '/login';
@@ -36,10 +40,10 @@ api.interceptors.response.use(
 // Auth
 export const authAPI = {
   register: (username: string, email: string, password: string) =>
-    api.post('/auth/register', { username, email, password }),
+    api.post<{ data: AuthTokenResponse }>('/auth/register', { username, email, password }),
   login: (username: string, password: string) =>
-    api.post('/auth/login', { username, password }),
-  me: () => api.get('/auth/me'),
+    api.post<{ data: AuthTokenResponse }>('/auth/login', { username, password }),
+  me: () => api.get<{ data: { id: string; username: string; email: string; role: string } }>('/auth/me'),
   logout: () => api.post('/auth/logout'),
 };
 
@@ -63,5 +67,14 @@ export const guessAPI = {
   get: (id: string) => api.get(`/guess-number/games/${id}`),
   guess: (id: string, guess: number) => api.post(`/guess-number/games/${id}/guess`, { guess }),
 };
+
+// Helper to extract error message safely from Axios errors (replaces `err: any` catch patterns)
+export function getApiErrorMessage(err: unknown, fallback: string): string {
+  if (axios.isAxiosError(err)) {
+    const body = err.response?.data as ApiErrorBody | undefined;
+    return body?.error ?? body?.message ?? fallback;
+  }
+  return fallback;
+}
 
 export default api;

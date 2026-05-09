@@ -12,10 +12,11 @@ import {
   signAccessToken,
   verifyAccessToken,
 } from '../services/token.service';
+import type { AuthenticatedRequest, HttpError } from '../types';
 
 // Forwards async errors to the global error handler, avoiding boilerplate try-catch in every handler
 function wrap(fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) {
-  return (req: Request, res: Response, next: NextFunction) => fn(req, res, next).catch(next);
+  return (req: Request, res: Response, next: NextFunction): void => { fn(req, res, next).catch(next); };
 }
 
 export const register = wrap(async (req, res) => {
@@ -67,8 +68,8 @@ export const login = wrap(async (req, res) => {
   res.json({ success: true, data: { accessToken, refreshToken, user: { id: user.id, username: user.username, role: user.role } } });
 });
 
-export const refresh = wrap(async (req, res) => {
-  const { refreshToken } = req.body;
+export const refresh = wrap(async (req: Request, res: Response) => {
+  const { refreshToken } = req.body as { refreshToken?: string };
   if (!refreshToken) { res.status(400).json({ success: false, error: 'refreshToken required' }); return; }
 
   const hash   = crypto.createHash('sha256').update(refreshToken).digest('hex');
@@ -92,8 +93,8 @@ export const refresh = wrap(async (req, res) => {
   res.json({ success: true, data: { accessToken, refreshToken: newRefreshToken } });
 });
 
-export const logout = wrap(async (req, res) => {
-  const userId = (req as any).user?.sub;
+export const logout = wrap(async (req: Request, res: Response) => {
+  const userId = (req as AuthenticatedRequest).user?.sub;
   if (userId) {
     await revokeAllUserTokens(userId);
     logger.info('User logged out — all tokens revoked', { userId });
@@ -101,8 +102,8 @@ export const logout = wrap(async (req, res) => {
   res.json({ success: true, data: { message: 'Logged out' } });
 });
 
-export const me = wrap(async (req, res) => {
-  const userId = (req as any).user?.sub;
+export const me = wrap(async (req: Request, res: Response) => {
+  const userId = (req as AuthenticatedRequest).user?.sub;
   const user   = await prisma.user.findUnique({
     where:  { id: userId },
     select: { id: true, username: true, email: true, role: true, createdAt: true },

@@ -9,6 +9,7 @@ import { config } from './config';
 import { connectDatabases, disconnectDatabases, prisma, redis } from './db';
 import { logger } from './utils/logger';
 import authRoutes from './routes/auth.routes';
+import type { HttpError } from './types';
 
 const app = express();
 
@@ -40,8 +41,8 @@ app.get('/health', async (_req, res) => {
 // ── Global Error Handler ───────────────────────────────────────────
 // Catches errors forwarded by the `wrap` helper in controllers.
 // 4xx errors are client mistakes; only 5xx are true server failures.
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  const status = err.status || 500;
+app.use((err: HttpError, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const status = err.status ?? 500;
   const message = status < 500 ? err.message : 'Internal server error';
   if (status >= 500) {
     logger.error('Unhandled server error', err);
@@ -67,15 +68,15 @@ async function start() {
       logger.info('Running prisma migrate deploy');
       try {
         execSync('npx prisma migrate deploy', { stdio: 'inherit' });
-      } catch (err: any) {
-        const msg = String(err && err.message ? err.message : err);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
         logger.error('prisma migrate deploy failed', err);
         if (msg.includes('P3005')) {
           // P3005 means the DB is non-empty but has no migration history; fall back to push
           logger.warn('Detected P3005 — falling back to prisma db push');
           try {
             execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit' });
-          } catch (err2: any) {
+          } catch (err2: unknown) {
             logger.error('prisma db push also failed', err2);
             throw err2;
           }
@@ -87,7 +88,7 @@ async function start() {
       logger.info('No migrations found — using prisma db push to sync schema');
       try {
         execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit' });
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('prisma db push failed', err);
         throw err;
       }

@@ -21,6 +21,7 @@ export default function Navbar() {
         <div className="navbar-links">
           <Link to="/" className={active('/')}>Home</Link>
           <Link to="/leaderboard" className={`hide-mobile ${active('/leaderboard')}`}>Leaderboard</Link>
+          <Link to="/architecture" className={`hide-mobile ${active('/architecture')}`}>Architecture</Link>
           {user ? (
             <>
               <span style={{ color: 'var(--c-text-muted)', fontSize: '0.9rem', marginLeft: '0.5rem' }}>

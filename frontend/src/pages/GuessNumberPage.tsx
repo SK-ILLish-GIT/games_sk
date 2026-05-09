@@ -1,17 +1,9 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { guessAPI } from '../api/client';
+import { guessAPI, getApiErrorMessage } from '../api/client';
+import type { GuessNumberGame, GuessEntry, GuessHint } from '../types';
 
-interface GuessEntry { value: number; hint: 'too-low' | 'too-high' | 'correct'; }
-interface GameState {
-  gameId: string;
-  status: 'active' | 'won' | 'lost';
-  attempts: number;
-  maxAttempts: number;
-  guesses: GuessEntry[];
-  attemptsLeft?: number;
-  hint?: string;
-}
+type GameState = GuessNumberGame;
 
 export default function GuessNumberPage() {
   const [game, setGame] = useState<GameState | null>(null);
@@ -43,16 +35,16 @@ export default function GuessNumberPage() {
     setError('');
     try {
       const r = await guessAPI.guess(game.gameId, num);
-      setGame(r.data.data);
+      setGame(r.data.data as GameState);
       setGuessInput('');
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Guess failed');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Guess failed'));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const hintLabel = (hint: string) => {
+  const hintLabel = (hint: GuessHint): string => {
     if (hint === 'too-low') return '⬆️ Too low';
     if (hint === 'too-high') return '⬇️ Too high';
     return '✅ Correct!';

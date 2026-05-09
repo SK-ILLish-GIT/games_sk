@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config';
 import { prisma, redis } from '../db';
 import { logger } from '../utils/logger';
+import type { JwtUserPayload } from '../types';
 
 // Converts a duration string (e.g. "7d", "15m") to milliseconds
 function msFromDuration(d: string): number {
@@ -18,8 +19,8 @@ export function signAccessToken(payload: { sub: string; username: string; role: 
   return jwt.sign(payload, config.jwt.secret, { expiresIn: config.jwt.accessExpiresIn } as jwt.SignOptions);
 }
 
-export function verifyAccessToken(token: string): jwt.JwtPayload {
-  return jwt.verify(token, config.jwt.secret) as jwt.JwtPayload;
+export function verifyAccessToken(token: string): JwtUserPayload {
+  return jwt.verify(token, config.jwt.secret) as JwtUserPayload;
 }
 
 export async function createRefreshToken(userId: string): Promise<string> {

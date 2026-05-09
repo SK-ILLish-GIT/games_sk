@@ -1,14 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authAPI } from '../api/client';
-
-interface User { id: string; username: string; role: string; email?: string; }
-interface AuthCtx {
-  user: User | null;
-  loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-}
+import type { User, AuthCtx } from '../types';
 
 const AuthContext = createContext<AuthCtx | null>(null);
 
@@ -20,7 +12,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = localStorage.getItem('accessToken');
     if (!token) { setLoading(false); return; }
     authAPI.me()
-      .then(r => setUser(r.data.data))
+      .then(r => setUser(r.data.data as User))
       .catch(() => localStorage.clear())
       .finally(() => setLoading(false));
   }, []);

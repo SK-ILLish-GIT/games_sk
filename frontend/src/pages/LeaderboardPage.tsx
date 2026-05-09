@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { leaderboardAPI } from '../api/client';
-
-interface Entry { rank: number; userId: string; username: string; score: number; }
+import type { LeaderboardEntry } from '../types';
 
 const GAMES = ['global', 'tic-tac-toe', 'guess-number'];
 const GAME_LABELS: Record<string, string> = {
@@ -12,7 +11,7 @@ const GAME_LABELS: Record<string, string> = {
 
 export default function LeaderboardPage() {
   const [activeGame, setActiveGame] = useState('global');
-  const [entries, setEntries] = useState<Entry[]>([]);
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -23,7 +22,7 @@ export default function LeaderboardPage() {
       ? leaderboardAPI.getGlobal()
       : leaderboardAPI.getByGame(activeGame);
     call
-      .then(r => setEntries(r.data.data))
+      .then(r => setEntries(r.data.data as LeaderboardEntry[]))
       .catch(() => setError('Failed to load leaderboard'))
       .finally(() => setLoading(false));
   }, [activeGame]);
@@ -41,7 +40,7 @@ export default function LeaderboardPage() {
         <div className="page-header">
           <div>
             <h1 className="page-title">🏆 Leaderboard</h1>
-            <p>Top players across all games — updated in real-time via Redis</p>
+            <p>Best scores across every game — compete for the top spot</p>
           </div>
         </div>
 
@@ -90,10 +89,6 @@ export default function LeaderboardPage() {
             </table>
           )}
         </div>
-
-        <p style={{ marginTop: '1rem', fontSize: '0.8rem', textAlign: 'center' }}>
-          Leaderboard cached in Redis Sorted Sets — refreshes every 30s
-        </p>
       </div>
     </div>
   );

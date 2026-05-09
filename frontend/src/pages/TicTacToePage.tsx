@@ -1,17 +1,10 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ticTacToeAPI } from '../api/client';
+import { ticTacToeAPI, getApiErrorMessage } from '../api/client';
+import type { TicTacToeGame, TicTacToeStatus } from '../types';
 
-type Board = (string | null)[];
-type Status = 'idle' | 'active' | 'finished';
-
-interface GameState {
-  gameId: string;
-  board: Board;
-  currentPlayer: 'X' | 'O';
-  status: string;
-  winner: string | null;
-}
+type Status = TicTacToeStatus;
+type GameState = TicTacToeGame;
 
 export default function TicTacToePage() {
   const [game, setGame] = useState<GameState | null>(null);
@@ -40,11 +33,11 @@ export default function TicTacToePage() {
     setMovePending(true);
     try {
       const r = await ticTacToeAPI.move(game.gameId, position);
-      const updated: GameState = r.data.data;
+      const updated = r.data.data as TicTacToeGame;
       setGame(updated);
       if (updated.status === 'finished') setStatus('finished');
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Move failed');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Move failed'));
     } finally {
       setMovePending(false);
     }

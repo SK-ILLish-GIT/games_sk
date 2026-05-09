@@ -1,12 +1,14 @@
 import { redis, prisma, LB_KEY, LB_GLOBAL, LB_CACHE_TTL } from '../db';
 import { logger } from '../utils/logger';
+import type { ScoreGroupByResult } from '../types';
+import { Prisma } from '@prisma/client';
 
 export interface ScorePayload {
   userId: string;
   username: string;
   gameId: string;
   score: number;
-  metadata?: Record<string, unknown>;
+  metadata?: Prisma.InputJsonValue;
 }
 
 /**
@@ -19,7 +21,7 @@ export async function submitScore(payload: ScorePayload) {
 
   // Write to DB first as the source of truth
   const entry = await prisma.score.create({
-    data: { userId, username, gameId, score, metadata: metadata as any },
+    data: { userId, username, gameId, score, metadata },
   });
 
   // Lua: only update the sorted set if the new score beats the existing one
@@ -75,19 +77,19 @@ export async function getLeaderboard(gameId: string, limit = 100) {
   });
 
   const pipeline = redis.pipeline();
-  scores.forEach((s: any) => {
+  (scores as ScoreGroupByResult[]).forEach((s) => {
     const member = `${s.userId}:${s.username}`;
-    pipeline.zadd(key, s._max.score, member);
+    pipeline.zadd(key, s._max.score ?? 0, member);
   });
   // Warm cache lasts 5x the normal TTL since it's expensive to rebuild
   pipeline.expire(key, LB_CACHE_TTL * 10);
   await pipeline.exec();
 
-  return scores.map((s: any, idx: number) => ({
+  return (scores as ScoreGroupByResult[]).map((s, idx) => ({
     rank: idx + 1,
     userId: s.userId,
     username: s.username,
-    score: s._max.score,
+    score: s._max.score ?? 0,
   }));
 }
 

@@ -6,6 +6,7 @@ import { config } from './config';
 import { connect, disconnect, prisma, redis } from './db';
 import { logger } from './utils/logger';
 import lbRoutes from './routes/leaderboard.routes';
+import type { HttpError } from './types';
 
 const app = express();
 
@@ -29,8 +30,8 @@ app.get('/health', async (_req, res) => {
 });
 
 // ── Global Error Handler ───────────────────────────────────────────
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  const status = err.status || 500;
+app.use((err: HttpError, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const status = err.status ?? 500;
   if (status >= 500) {
     logger.error('Unhandled server error', err);
   } else {

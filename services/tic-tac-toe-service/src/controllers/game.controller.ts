@@ -8,13 +8,15 @@ import { TicTacToeSession, redis, gameKey, GAME_STATE_TTL } from '../db';
 import { logger } from '../utils/logger';
 import { GAME_CONSTANTS, HTTP_STATUS } from '../config/constants';
 import * as engine from '../game/engine';
+import type { GameResult } from '../game/engine';
+import type { TicTacToeState, JwtUserPayload } from '../types';
 
 /**
  * Wraps async Express route handlers to automatically catch and forward errors
  * to the global error handling middleware, eliminating the need for repetitive try-catch blocks.
  */
 function wrap(fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) {
-  return (req: Request, res: Response, next: NextFunction) => fn(req, res, next).catch(next);
+  return (req: Request, res: Response, next: NextFunction): void => { fn(req, res, next).catch(next); };
 }
 
 /**
@@ -27,7 +29,7 @@ function extractUser(req: Request): { id: string; username: string } | null {
   if (!token) return null;
 
   try {
-    const p = jwt.verify(token, config.auth.jwtSecret) as any;
+    const p = jwt.verify(token, config.auth.jwtSecret) as JwtUserPayload;
     return { id: p.sub, username: p.username };
   } catch {
     // Silently fail on bad tokens to allow unauthenticated access to continue
@@ -39,21 +41,41 @@ function extractUser(req: Request): { id: string; username: string } | null {
  * Retrieves the current game state, preferring the fast Redis cache
  * and falling back to MongoDB if the cache has expired or was evicted.
  */
-async function getGameState(gameId: string) {
+async function getGameState(gameId: string): Promise<TicTacToeState | null> {
   const cached = await redis.get(gameKey(gameId));
   if (cached) {
     logger.debug('Game state cache hit', { gameId });
-    return JSON.parse(cached);
+    return JSON.parse(cached) as TicTacToeState;
   }
 
   logger.debug('Game state cache miss, fetching from DB', { gameId });
-  return TicTacToeSession.findOne({ gameId });
+  const doc = await TicTacToeSession.findOne({ gameId });
+  if (!doc) return null;
+
+  // Convert Mongoose document to plain TicTacToeState
+  return {
+    gameId:        doc.gameId,
+    board:         doc.board,
+    currentPlayer: doc.currentPlayer,
+    status:        doc.status,
+    winner:        doc.winner as GameResult,
+    playerX:       doc.playerX ?? 'anonymous',
+    playerO:       doc.playerO ?? null,
+    moves:         doc.moves.map((m) => ({
+      player:    m.player,
+      position:  m.position,
+      symbol:    m.symbol,
+      timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : (m.timestamp as string),
+    })),
+    createdAt:     doc.createdAt instanceof Date ? doc.createdAt.toISOString() : (doc.createdAt as string),
+    finishedAt:    doc.finishedAt ? (doc.finishedAt instanceof Date ? doc.finishedAt.toISOString() : (doc.finishedAt as string)) : undefined,
+  };
 }
 
 /**
  * Saves the game state to both MongoDB (persistent) and Redis (fast access).
  */
-async function saveGameState(state: any) {
+async function saveGameState(state: TicTacToeState): Promise<void> {
   await redis.setex(gameKey(state.gameId), GAME_STATE_TTL, JSON.stringify(state));
   await TicTacToeSession.findOneAndUpdate(
     { gameId: state.gameId },
@@ -66,30 +88,35 @@ async function saveGameState(state: any) {
  * Asynchronously fires a request to the leaderboard service to register a completed game's score.
  * Failures are logged as warnings and do not affect the game response.
  */
-async function submitScore(userId: string, username: string, score: number) {
+async function submitScore(userId: string, username: string, score: number): Promise<void> {
   try {
     logger.info('Submitting score to leaderboard', { userId, score });
     await axios.post(`${config.services.leaderboardUrl}/scores`, {
       userId, username, gameId: GAME_CONSTANTS.GAME_ID, score,
     }, { timeout: config.http.timeoutMs });
-  } catch (err) {
+  } catch (err: unknown) {
     // We only log a warning because leaderboard failures shouldn't crash the game flow
-    logger.warn('Failed to submit score, leaderboard might be down', { userId, gameId: GAME_CONSTANTS.GAME_ID, score, error: err instanceof Error ? err.message : String(err) });
+    logger.warn('Failed to submit score, leaderboard might be down', {
+      userId,
+      gameId: GAME_CONSTANTS.GAME_ID,
+      score,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
 // POST /games
-export const createGame = wrap(async (req, res) => {
+export const createGame = wrap(async (req: Request, res: Response) => {
   const user   = extractUser(req);
   const gameId = uuidv4();
 
-  const state = {
+  const state: TicTacToeState = {
     gameId,
-    board:         Array(GAME_CONSTANTS.BOARD_SIZE).fill(null),
-    currentPlayer: 'X' as engine.Player,
+    board:         Array(GAME_CONSTANTS.BOARD_SIZE).fill(null) as (string | null)[],
+    currentPlayer: 'X',
     status:        'active',
     winner:        null,
-    playerX:       user?.id || 'anonymous',
+    playerX:       user?.id ?? 'anonymous',
     playerO:       null, // A second player can join later or play locally
     moves:         [],
     createdAt:     new Date().toISOString(),
@@ -102,7 +129,7 @@ export const createGame = wrap(async (req, res) => {
 });
 
 // GET /games/:id
-export const getGame = wrap(async (req, res) => {
+export const getGame = wrap(async (req: Request, res: Response) => {
   const gameId = req.params.id;
   const state  = await getGameState(gameId);
 
@@ -116,7 +143,7 @@ export const getGame = wrap(async (req, res) => {
 });
 
 // POST /games/:id/move
-export const makeMove = wrap(async (req, res) => {
+export const makeMove = wrap(async (req: Request, res: Response) => {
   const gameId = req.params.id;
   const state  = await getGameState(gameId);
 
@@ -132,7 +159,7 @@ export const makeMove = wrap(async (req, res) => {
     return;
   }
 
-  const { position } = req.body;
+  const { position } = req.body as { position?: unknown };
   if (typeof position !== 'number') {
     res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, error: 'position (number 0-8) required' });
     return;
@@ -143,9 +170,10 @@ export const makeMove = wrap(async (req, res) => {
 
   try {
     ({ board: newBoard, result } = engine.applyMove(state.board, position, state.currentPlayer));
-  } catch (err: any) {
-    logger.warn('Invalid move payload/logic', { gameId, position, error: err.message });
-    res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Invalid move';
+    logger.warn('Invalid move payload/logic', { gameId, position, error: message });
+    res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, error: message });
     return;
   }
 
@@ -170,7 +198,7 @@ export const makeMove = wrap(async (req, res) => {
     const user = extractUser(req);
     if (user) {
       const score = engine.scoreForResult(result, state.currentPlayer);
-      submitScore(user.id, user.username, score); // Note: we don't await this so the response is fast
+      void submitScore(user.id, user.username, score); // fire-and-forget
     }
   } else {
     // Pass turn to the next player

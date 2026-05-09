@@ -8,6 +8,7 @@ import { LoginPage, RegisterPage } from './pages/AuthPages';
 import LeaderboardPage from './pages/LeaderboardPage';
 import TicTacToePage from './pages/TicTacToePage';
 import GuessNumberPage from './pages/GuessNumberPage';
+import ArchitecturePage from './pages/ArchitecturePage';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -16,12 +17,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <BrowserRouter>
         <Navbar />
         <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/leaderboard" element={<LeaderboardPage />} />
-          <Route path="/tic-tac-toe" element={<TicTacToePage />} />
+          <Route path="/"             element={<HomePage />} />
+          <Route path="/login"        element={<LoginPage />} />
+          <Route path="/register"     element={<RegisterPage />} />
+          <Route path="/leaderboard"  element={<LeaderboardPage />} />
+          <Route path="/tic-tac-toe"  element={<TicTacToePage />} />
           <Route path="/guess-number" element={<GuessNumberPage />} />
+          <Route path="/architecture" element={<ArchitecturePage />} />
           <Route path="*" element={
             <div className="flex-center" style={{ minHeight: '60vh', flexDirection: 'column', gap: '1rem' }}>
               <h1 style={{ fontSize: '4rem' }}>404</h1>

@@ -6,7 +6,7 @@ const GAMES = [
     id: 'tic-tac-toe',
     emoji: '⭕',
     title: 'Tic-Tac-Toe',
-    description: 'Classic X vs O — claim 3 in a row to win. Fast rounds, pure strategy.',
+    description: 'Classic 3×3 strategy. Place your mark, block your opponent, land three in a row. Fast, sharp, no luck.',
     badge: 'Classic',
     badgeClass: 'badge-accent',
     path: '/tic-tac-toe',
@@ -15,7 +15,7 @@ const GAMES = [
     id: 'guess-number',
     emoji: '🎯',
     title: 'Guess the Number',
-    description: 'A secret number between 1–100. Use fewer guesses to score higher.',
+    description: 'Crack a secret number between 1 and 100 in 7 tries. Every wrong guess costs — score higher by solving it faster.',
     badge: 'Solo',
     badgeClass: 'badge-orange',
     path: '/guess-number',
@@ -28,11 +28,10 @@ export default function HomePage() {
       {/* Hero */}
       <section className="hero">
         <div className="container">
-          <p className="badge badge-accent" style={{ marginBottom: '1rem' }}>🎮 Platform v2 — Now with Leaderboards</p>
+          <p className="badge badge-accent" style={{ marginBottom: '1rem' }}>🎮 GameVault — Microservices Platform</p>
           <h1>Play. <span className="gradient-text">Compete.</span> Win.</h1>
           <p className="hero-subtitle">
-            A microservices gaming platform — each game is an independent service,<br />
-            all connected through a global leaderboard.
+            Pick a game, set a high score, and fight for the top spot on the global leaderboard.
           </p>
         </div>
       </section>
@@ -73,7 +72,7 @@ export default function HomePage() {
                   <h3 className="game-card-title">Snake</h3>
                   <span className="badge" style={{ background: 'var(--c-surface2)', color: 'var(--c-text-muted)' }}>Soon</span>
                 </div>
-                <p className="game-card-desc">Classic snake game — coming in the next release.</p>
+                <p className="game-card-desc">The classic arcade crawler — coming in the next release.</p>
               </div>
             </div>
           </div>
@@ -84,12 +83,19 @@ export default function HomePage() {
       <section style={{ padding: '0 0 4rem' }}>
         <div className="container">
           <div className="card" style={{ background: 'linear-gradient(135deg, rgba(124,110,245,0.1), rgba(245,162,110,0.08))', borderColor: 'rgba(124,110,245,0.3)' }}>
-            <h3 style={{ marginBottom: '0.5rem' }}>🏗️ Microservices Architecture</h3>
-            <p>Each game runs as an independent Docker container. Auth and leaderboard are platform-level services shared by all games. Redis powers the real-time leaderboard sorted sets with sub-millisecond reads.</p>
+            <h3 style={{ marginBottom: '0.5rem' }}>🏗️ Built on Microservices</h3>
+            <p>
+              Every game runs as an isolated Docker container with its own database and cache.
+              A shared Auth service handles identity and JWT issuance. The Leaderboard service
+              aggregates scores across all games using Redis Sorted Sets for sub-millisecond ranking.
+            </p>
             <div className="flex flex-wrap gap-sm" style={{ marginTop: '1rem', flexWrap: 'wrap' }}>
               {['Node.js', 'Express', 'PostgreSQL', 'MongoDB', 'Redis', 'React', 'Docker', 'Nginx'].map(t => (
                 <span key={t} className="badge badge-accent">{t}</span>
               ))}
+            </div>
+            <div style={{ marginTop: '1.25rem' }}>
+              <Link to="/architecture" className="btn btn-secondary btn-sm">View Architecture →</Link>
             </div>
           </div>
         </div>
