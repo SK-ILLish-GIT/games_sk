@@ -18,7 +18,7 @@ export async function register(username: string, email: string, password: string
   const passwordHash = await bcrypt.hash(password, 12);
   const user = await prisma.user.create({
     data: { username, email, passwordHash, role: 'player' },
-    select: { id: true, username: true, role: true },
+    select: { id: true, username: true, email: true, role: true },
   });
 
   const accessToken = signAccessToken({ sub: user.id, username: user.username, role: user.role });
@@ -39,7 +39,7 @@ export async function login(usernameOrEmail: string, password: string) {
   const accessToken = signAccessToken({ sub: user.id, username: user.username, role: user.role });
   const refreshToken = await createRefreshToken(user.id);
 
-  return { accessToken, refreshToken, user: { id: user.id, username: user.username, role: user.role } };
+  return { accessToken, refreshToken, user: { id: user.id, username: user.username, email: user.email, role: user.role } };
 }
 
 // Not used in practice — see note at top of file

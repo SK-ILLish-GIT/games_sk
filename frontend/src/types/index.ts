@@ -7,6 +7,11 @@ export interface User {
   email?: string;
 }
 
+export interface UpdateUserRequest {
+  username?: string;
+  email?: string;
+}
+
 // ── Auth Context contract ─────────────────────────────────────────
 export interface AuthCtx {
   user: User | null;
@@ -14,6 +19,7 @@ export interface AuthCtx {
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateProfile: (data: UpdateUserRequest) => Promise<void>;
 }
 
 // ── Auth API response shapes ──────────────────────────────────────

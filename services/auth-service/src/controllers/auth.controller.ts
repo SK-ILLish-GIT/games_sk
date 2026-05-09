@@ -37,7 +37,7 @@ export const register = wrap(async (req, res) => {
   const passwordHash = await bcrypt.hash(password, config.bcrypt.saltRounds);
   const user = await prisma.user.create({
     data: { username, email, passwordHash, role: ROLE.Player },
-    select: { id: true, username: true, role: true },
+    select: { id: true, username: true, email: true, role: true },
   });
 
   const accessToken  = signAccessToken({ sub: user.id, username: user.username, role: user.role });
@@ -66,7 +66,7 @@ export const login = wrap(async (req, res) => {
   const refreshToken = await createRefreshToken(user.id);
 
   logger.info('User logged in', { userId: user.id, username: user.username });
-  res.json({ success: true, data: { accessToken, refreshToken, user: { id: user.id, username: user.username, role: user.role } } });
+  res.json({ success: true, data: { accessToken, refreshToken, user: { id: user.id, username: user.username, email: user.email, role: user.role } } });
 });
 
 export const refresh = wrap(async (req: Request, res: Response) => {
@@ -110,6 +110,44 @@ export const me = wrap(async (req: Request, res: Response) => {
     select: { id: true, username: true, email: true, role: true, createdAt: true },
   });
   if (!user) { res.status(HTTP_STATUS.NOT_FOUND).json({ success: false, error: 'User not found' }); return; }
+  res.json({ success: true, data: user });
+});
+
+export const updateMe = wrap(async (req: Request, res: Response) => {
+  const userId = (req as AuthenticatedRequest).user?.sub;
+  const { username, email } = req.body as { username?: string; email?: string };
+
+  if (!username && !email) {
+    res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, error: 'Provide username or email to update' });
+    return;
+  }
+
+  // Check for uniqueness conflicts (only for fields that are actually changing)
+  const conflicts = [];
+  if (username) conflicts.push({ username });
+  if (email) conflicts.push({ email });
+
+  if (conflicts.length > 0) {
+    const existing = await prisma.user.findFirst({
+      where: { AND: [{ id: { not: userId } }, { OR: conflicts }] },
+    });
+    if (existing) {
+      res.status(HTTP_STATUS.CONFLICT).json({ success: false, error: 'Username or email already taken' });
+      return;
+    }
+  }
+
+  const updateData: { username?: string; email?: string } = {};
+  if (username) updateData.username = username;
+  if (email) updateData.email = email;
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: updateData,
+    select: { id: true, username: true, email: true, role: true },
+  });
+
+  logger.info('User profile updated', { userId, fields: Object.keys(updateData) });
   res.json({ success: true, data: user });
 });
 

@@ -1,18 +1,12 @@
 import React from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
 
   const active = (path: string) => location.pathname === path ? 'active' : '';
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
 
   return (
     <nav className="navbar">
@@ -23,12 +17,9 @@ export default function Navbar() {
           <Link to="/leaderboard" className={`hide-mobile ${active('/leaderboard')}`}>Leaderboard</Link>
           <Link to="/architecture" className={`hide-mobile ${active('/architecture')}`}>Architecture</Link>
           {user ? (
-            <>
-              <span style={{ color: 'var(--c-text-muted)', fontSize: '0.9rem', marginLeft: '0.5rem' }}>
-                👤 {user.username}
-              </span>
-              <button className="btn btn-secondary btn-sm" onClick={handleLogout}>Sign Out</button>
-            </>
+            <Link to="/profile" className={`btn btn-secondary btn-sm ${active('/profile')}`}>
+              👤 {user.username}
+            </Link>
           ) : (
             <>
               <Link to="/login" className={active('/login')}>Sign In</Link>

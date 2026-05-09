@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authAPI } from '../api/client';
-import type { User, AuthCtx } from '../types';
+import type { User, AuthCtx, UpdateUserRequest } from '../types';
 
 const AuthContext = createContext<AuthCtx | null>(null);
 
@@ -27,10 +27,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (username: string, email: string, password: string) => {
     const r = await authAPI.register(username, email, password);
-    const { accessToken, refreshToken, user: u } = r.data.data;
+    const { accessToken, refreshToken } = r.data.data;
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
-    setUser(u);
+
+    // Fetch latest user profile (ensures email and other fields are populated)
+    try {
+      const me = await authAPI.me();
+      setUser(me.data.data as User);
+    } catch {
+      // Fallback to any user object returned in the register response
+      const u = (r.data.data as any).user as User | undefined;
+      if (u) setUser(u);
+    }
   };
 
   const logout = async () => {
@@ -39,8 +48,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const updateProfile = async (data: UpdateUserRequest) => {
+    const r = await authAPI.updateProfile(data);
+    const updatedUser = r.data.data;
+    setUser({
+      id: updatedUser.id,
+      username: updatedUser.username,
+      email: updatedUser.email,
+      role: updatedUser.role as User['role'],
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -45,6 +45,8 @@ export const authAPI = {
     api.post<{ data: AuthTokenResponse }>('/auth/login', { username, password }),
   me: () => api.get<{ data: { id: string; username: string; email: string; role: string } }>('/auth/me'),
   logout: () => api.post('/auth/logout'),
+  updateProfile: (data: { username?: string; email?: string }) =>
+    api.put<{ data: { id: string; username: string; email: string; role: string } }>('/auth/me', data),
 };
 
 // Leaderboard
