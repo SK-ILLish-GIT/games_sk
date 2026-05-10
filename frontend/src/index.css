@@ -376,11 +376,40 @@ label { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; font-weight:
 
 /* ── Profile page ──────────────────────────────────────────────── */
 .profile-container {
-  max-width: 600px;
+  max-width: 900px;
   margin-top: 1rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+/* Profile main cards: profile left (full height), prefs + session stacked right */
+.profile-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.profile-cards-grid > .profile-layout-profile {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: stretch;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-cards-grid > .profile-layout-preferences {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.profile-cards-grid > .profile-layout-session {
+  grid-column: 2;
+  grid-row: 2;
 }
 
 .profile-header {
@@ -567,6 +596,18 @@ label { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; font-weight:
 @media (max-width: 640px) {
   .navbar-links .hide-mobile { display: none; }
   .game-grid { grid-template-columns: 1fr; }
+
+  .profile-cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-cards-grid > .profile-layout-profile,
+  .profile-cards-grid > .profile-layout-preferences,
+  .profile-cards-grid > .profile-layout-session {
+    grid-column: 1;
+    grid-row: auto;
+    align-self: stretch;
+  }
 
   .profile-container { margin-top: 0.5rem; gap: 1rem; }
   .profile-card { padding: 1.25rem; }

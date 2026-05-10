@@ -145,7 +145,7 @@ export default function ProfilePage() {
         <Squares direction="diagonal" speed={0.4} squareSize={40} borderColor="var(--c-accent)" />
       </div>
 
-      <div className="container profile-container" style={{ position: 'relative', zIndex: 1, maxWidth: '900px' }}>
+      <div className="container profile-container" style={{ position: 'relative', zIndex: 1 }}>
 
         {/* ── Header / Avatar Section ──────────────────────────── */}
         <div className="profile-header">
@@ -174,11 +174,9 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* ── Two Column Layout ────────────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', alignItems: 'start' }}>
-          
-          {/* ── Profile Info Card ────────────────────────────────── */}
-          <SpotlightCard className="profile-card" spotlightColor="var(--c-accent-glow)">
+        {/* ── Cards: profile left (spans height), prefs + session right ─ */}
+        <div className="profile-cards-grid">
+          <SpotlightCard className="profile-card profile-layout-profile" spotlightColor="var(--c-accent-glow)">
           <div className="profile-card-header">
             <h2 className="profile-card-title">
               {isEditing ? '✏️ Edit Profile' : '👤 Profile Details'}
@@ -278,8 +276,7 @@ export default function ProfilePage() {
           )}
         </SpotlightCard>
 
-        {/* ── Preferences ─────────────────────────────── */}
-        <SpotlightCard className="profile-card" spotlightColor="var(--c-accent2-glow)">
+        <SpotlightCard className="profile-card profile-layout-preferences" spotlightColor="var(--c-accent2-glow)">
           <div className="profile-card-header">
             <h2 className="profile-card-title">🎨 Preferences</h2>
           </div>
@@ -300,8 +297,7 @@ export default function ProfilePage() {
           </div>
         </SpotlightCard>
 
-        {/* ── Danger Zone / Logout ─────────────────────────────── */}
-        <SpotlightCard className="profile-card profile-danger-zone" spotlightColor="rgba(248, 113, 113, 0.15)">
+        <SpotlightCard className="profile-card profile-danger-zone profile-layout-session" spotlightColor="rgba(248, 113, 113, 0.15)">
           <div className="profile-card-header">
             <h2 className="profile-card-title">⚙️ Session</h2>
           </div>
@@ -318,7 +314,7 @@ export default function ProfilePage() {
           </button>
         </SpotlightCard>
 
-        </div> {/* End Two Column Layout */}
+        </div>
 
         {/* ── Back link ────────────────────────────────────────── */}
         <div className="profile-back">
