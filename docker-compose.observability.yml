@@ -1,0 +1,227 @@
+# Observability overlay for the games platform.
+#
+# Stack: OpenTelemetry Collector + Prometheus + Loki + Tempo + Grafana
+# (plus Promtail for container log shipping, cAdvisor + node-exporter for
+# host/container metrics).
+#
+# Run together with the main compose file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
+#
+# UIs:
+#   Grafana     http://localhost:3030     (admin / admin)
+#   Prometheus  http://localhost:9090
+#   Loki        http://localhost:3100     (API only)
+#   Tempo       http://localhost:3200     (API only — view traces in Grafana)
+#
+# All app services are wired with OTLP env vars so the OTel SDK in
+# `@games-platform/observability` exports to the collector at otel-collector:4317.
+# Services without the SDK enabled simply ignore these vars — nothing breaks.
+
+x-otel-app: &otel_app_env
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+  OTEL_EXPORTER_OTLP_INSECURE: "true"
+  OTEL_LOGS_EXPORTER: otlp
+  OTEL_METRICS_EXPORTER: otlp
+  OTEL_TRACES_EXPORTER: otlp
+  OTEL_RESOURCE_ATTRIBUTES: deployment.environment=${DEPLOY_ENV:-development}
+  OTEL_LOG_LEVEL: ${OTEL_LOG_LEVEL:-warn}
+
+services:
+
+  # ──────────────────────────────────────────────────────────────────
+  # OpenTelemetry Collector — single ingress point for app telemetry.
+  # Receives OTLP from services, fans out:
+  #   metrics → Prometheus (pull via /metrics on :8889)
+  #   logs    → Loki  (push API)
+  #   traces  → Tempo (OTLP gRPC)
+  # ──────────────────────────────────────────────────────────────────
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    container_name: otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./observability/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+      # Lets the docker_stats receiver query container CPU/mem/net via the
+      # Docker API (works on Docker Desktop, unlike cAdvisor's filesystem path).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # Prometheus exporter (collector's own metrics + apps)
+    # No depends_on for tempo/loki/prometheus — the collector retries failed
+    # exports, and adding edges here would create a cycle with tempo→prometheus.
+
+  # ──────────────────────────────────────────────────────────────────
+  # Metrics — Prometheus (scrape) + cAdvisor + node-exporter (sources)
+  # ──────────────────────────────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+      - --web.enable-remote-write-receiver   # Tempo's metrics generator pushes here.
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    # On Docker Desktop (macOS/Windows) the host /var/lib/docker isn't the
+    # daemon's actual data dir, so cAdvisor can't enrich containers from
+    # disk. The docker socket mount lets it pull container metadata via
+    # the Docker API instead, which populates `name`, `image`,
+    # `container_label_*` etc. on every series.
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=10s
+      - --store_container_labels=false
+      - --whitelisted_container_labels=com.docker.compose.service,com.docker.compose.project
+    expose:
+      - "8080"
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: node-exporter
+    restart: unless-stopped
+    # Mount only what node-exporter needs. Avoid `/:/host:ro,rslave` because
+    # Docker Desktop for macOS does not expose the host root with shared/slave
+    # mount propagation and rejects the bind ("path / is mounted on / but it
+    # is not a shared or slave mount").
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    expose:
+      - "9100"
+
+  # ──────────────────────────────────────────────────────────────────
+  # Logs — Loki (storage + query) + Promtail (container log shipper)
+  # ──────────────────────────────────────────────────────────────────
+
+  loki:
+    image: grafana/loki:3.2.1
+    container_name: loki
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - ./observability/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+
+  promtail:
+    image: grafana/promtail:3.2.1
+    container_name: promtail
+    restart: unless-stopped
+    command: ["-config.file=/etc/promtail/config.yaml"]
+    volumes:
+      - ./observability/promtail-config.yaml:/etc/promtail/config.yaml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+
+  # ──────────────────────────────────────────────────────────────────
+  # Traces — Tempo (OTLP receiver, local block storage)
+  # ──────────────────────────────────────────────────────────────────
+
+  tempo:
+    image: grafana/tempo:2.6.0
+    container_name: tempo
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo.yaml"]
+    user: root
+    volumes:
+      - ./observability/tempo-config.yaml:/etc/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"   # Tempo HTTP API (Grafana datasource)
+    depends_on:
+      - prometheus     # Tempo's metrics generator remote_writes here.
+
+  # ──────────────────────────────────────────────────────────────────
+  # Grafana — single pane of glass (datasources + dashboards provisioned)
+  # ──────────────────────────────────────────────────────────────────
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3030:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
+  # ──────────────────────────────────────────────────────────────────
+  # Application overlays — append OTel env to existing services so
+  # they push telemetry to the collector when instrumented.
+  # ──────────────────────────────────────────────────────────────────
+
+  auth-service:
+    environment:
+      <<: *otel_app_env
+      OTEL_SERVICE_NAME: auth-service
+
+  leaderboard-service:
+    environment:
+      <<: *otel_app_env
+      OTEL_SERVICE_NAME: leaderboard-service
+
+  tic-tac-toe-service:
+    environment:
+      <<: *otel_app_env
+      OTEL_SERVICE_NAME: tic-tac-toe-service
+
+  guess-number-service:
+    environment:
+      <<: *otel_app_env
+      OTEL_SERVICE_NAME: guess-number-service
+
+  hangman-service:
+    environment:
+      <<: *otel_app_env
+      OTEL_SERVICE_NAME: hangman-service
+
+volumes:
+  prometheus_data:
+  loki_data:
+  tempo_data:
+  grafana_data:

@@ -1,0 +1,182 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    { "title": "Overview", "type": "dashboards", "tags": ["overview"] },
+    { "title": "Games",    "type": "dashboards", "tags": ["games"] }
+  ],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "row",
+      "title": "Identity & sessions",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Active sessions",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "targets": [
+        { "expr": "max(auth_active_sessions)", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "value" }
+    },
+    {
+      "type": "stat",
+      "title": "Registrations (1h)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "targets": [
+        { "expr": "sum(increase(auth_registrations_total{result=\"success\"}[1h]))", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 0 } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "value" }
+    },
+    {
+      "type": "stat",
+      "title": "Logins (1h)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "targets": [
+        { "expr": "sum(increase(auth_logins_total{result=\"success\"}[1h]))", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 0 } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "value" }
+    },
+    {
+      "type": "stat",
+      "title": "Login failure rate (5m)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "targets": [
+        { "expr": "100 * sum(rate(auth_logins_total{result=\"invalid_credentials\"}[5m])) / clamp_min(sum(rate(auth_logins_total[5m])), 0.001)", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "decimals": 1,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green",  "value": null },
+            { "color": "yellow", "value": 20 },
+            { "color": "red",    "value": 50 }
+          ] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Registrations by result (per second)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 5,
+      "targets": [
+        { "expr": "sum by (result) (rate(auth_registrations_total[$__rate_interval]))", "legendFormat": "{{result}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "options": { "legend": { "displayMode": "table", "placement": "right" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Logins by result (per second)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 6,
+      "targets": [
+        { "expr": "sum by (result) (rate(auth_logins_total[$__rate_interval]))", "legendFormat": "{{result}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "options": { "legend": { "displayMode": "table", "placement": "right" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Active sessions over time",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "id": 7,
+      "targets": [
+        { "expr": "max(auth_active_sessions)", "legendFormat": "active refresh tokens", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none" } }
+    },
+
+    {
+      "type": "row",
+      "title": "Endpoint performance",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 101,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "auth-service request rate by route",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 8,
+      "targets": [
+        { "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service=\"auth-service\"}[$__rate_interval]))", "legendFormat": "{{span_name}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "options": { "legend": { "displayMode": "table", "placement": "right" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "auth-service p95 latency by route (s)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 9,
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le, span_name) (rate(traces_spanmetrics_latency_bucket{service=\"auth-service\"}[$__rate_interval])))", "legendFormat": "{{span_name}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "options": { "legend": { "displayMode": "table", "placement": "right" } }
+    },
+
+    {
+      "type": "row",
+      "title": "Logs",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
+      "id": 102,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "logs",
+      "title": "auth-service warnings & errors",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 32 },
+      "id": 10,
+      "targets": [
+        { "expr": "{service=\"auth-service\"} |~ \"\\\"level\\\"\\\\s*:\\\\s*\\\"(error|warn)\\\"\"", "refId": "A" }
+      ],
+      "options": {
+        "showTime": true, "showLabels": false, "wrapLogMessage": true,
+        "dedupStrategy": "none", "enableLogDetails": true, "sortOrder": "Descending"
+      }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["games", "auth"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Games Platform — Auth Service",
+  "uid": "games-auth",
+  "version": 1,
+  "weekStart": ""
+}

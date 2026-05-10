@@ -1,0 +1,39 @@
+# Prometheus scrape config for the games platform.
+#
+# Sources:
+#   - otel-collector :8889   → app metrics that arrived via OTLP
+#   - otel-collector :8888   → the collector's own metrics (queue length, refused, …)
+#   - cadvisor :8080         → per-container CPU / memory / net / fs
+#   - node-exporter :9100    → host CPU / memory / disk
+#
+# Service-level /metrics endpoints can be added under the `services` job once a
+# service exposes them (the OTel SDK already publishes via the collector, so
+# this is only useful if a service runs a Prometheus client directly).
+
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: games-platform
+
+scrape_configs:
+
+  - job_name: otel-collector-app-metrics
+    static_configs:
+      - targets: ["otel-collector:8889"]
+
+  - job_name: otel-collector-self
+    static_configs:
+      - targets: ["otel-collector:8888"]
+
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  - job_name: prometheus-self
+    static_configs:
+      - targets: ["localhost:9090"]

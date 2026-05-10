@@ -108,6 +108,28 @@ docker compose up --build
 | http://localhost:3000 | Full app (via gateway) |
 | http://localhost:5173 | Vite dev server (frontend only, for dev) |
 
+### 5. (Optional) Bring up the observability stack
+
+A separate compose overlay adds OpenTelemetry Collector, Prometheus, Loki,
+Tempo, and Grafana. Run alongside the main stack:
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.observability.yml \
+  up -d
+```
+
+| URL | What |
+|---|---|
+| http://localhost:3030 | Grafana (admin/admin) — preconfigured datasources + overview dashboard |
+| http://localhost:9090 | Prometheus — metrics |
+| http://localhost:3100 | Loki API — logs (query in Grafana) |
+| http://localhost:3200 | Tempo API — traces (query in Grafana) |
+
+See [OBSERVABILITY.md](OBSERVABILITY.md) for the full guide (how MELT
+flows through the stack, trace ↔ logs correlation, troubleshooting).
+
 ---
 
 ## 🛠️ Development

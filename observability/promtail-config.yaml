@@ -1,0 +1,43 @@
+# Promtail tails Docker container stdout/stderr files and ships them to Loki.
+#
+# This complements the OTLP log pipeline (apps that use the OTel SDK push logs
+# directly to the collector). Promtail catches everything else — containers
+# without the SDK still get their logs collected automatically.
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+  log_level: warn
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      - source_labels: ["__meta_docker_container_name"]
+        regex: "/(.*)"
+        target_label: container
+      - source_labels: ["__meta_docker_container_log_stream"]
+        target_label: stream
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
+        target_label: service
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_project"]
+        target_label: project
+    pipeline_stages:
+      # Try to parse JSON logs (our Node services already emit JSON via pino/winston);
+      # fall back gracefully when the line isn't JSON.
+      - json:
+          expressions:
+            level:    level
+            msg:      msg
+            trace_id: trace_id
+            span_id:  span_id
+      - labels:
+          level:

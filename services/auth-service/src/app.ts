@@ -5,6 +5,8 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 
+import { gamesMetrics } from '@games-platform/observability';
+
 import { config } from './config';
 import { connectDatabases, disconnectDatabases, prisma, redis } from './db';
 import { logger } from './utils/logger';
@@ -93,6 +95,21 @@ async function start() {
         throw err;
       }
     }
+
+    // Observable gauge: number of currently-valid refresh tokens.
+    // Collected on every metric export (every 15s by default).
+    gamesMetrics.authActiveSessions.addCallback(async (result) => {
+      try {
+        const count = await prisma.refreshToken.count({
+          where: { revoked: false, expiresAt: { gt: new Date() } },
+        });
+        result.observe(count);
+      } catch (err) {
+        logger.warn('auth.active_sessions gauge: failed to query refresh tokens', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    });
 
     app.listen(config.port, '0.0.0.0', () => {
       logger.info(`Listening on port ${config.port}`, { port: config.port });

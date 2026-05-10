@@ -8,6 +8,7 @@
     "dev": "ts-node-dev --respawn src/app.ts"
   },
   "dependencies": {
+    "@games-platform/observability": "file:./obs",
     "@prisma/client": "^5.14.0",
     "cors": "^2.8.5",
     "express": "^4.19.2",

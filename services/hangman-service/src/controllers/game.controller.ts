@@ -3,12 +3,16 @@ import { NextFunction, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 
+import { gamesMetrics } from '@games-platform/observability';
+
 import { config } from '../config';
 import { HangmanSession, redis, gameKey, GAME_STATE_TTL } from '../db';
 import { logger } from '../utils/logger';
 import { HTTP_STATUS, ANONYMOUS_PLAYER, GUEST_PLAYER_NAME } from '../constants/game.constants';
 import * as engine from '../game/engine';
 import { HangmanStatus } from '../game/engine';
+
+const GAME_LABEL = 'hangman';
 import type {
   GameState,
   SafeGameState,
@@ -140,6 +144,7 @@ export const createGame = wrap(async (req: Request, res: Response) => {
 
   await saveState(state);
   logger.info('New hangman game created', { gameId, difficulty, playerId: state.playerId, wordLength: word.length });
+  gamesMetrics.gameStartedTotal.add(1, { game: GAME_LABEL, difficulty });
 
   res.status(HTTP_STATUS.CREATED).json({ success: true, data: toSafeState(state) });
 });
@@ -235,6 +240,13 @@ export const makeGuess = wrap(async (req: Request, res: Response) => {
 
   state.guesses.push(recordedGuess);
 
+  // Per-guess metric: lets us see letter-vs-word and correct-vs-wrong split.
+  gamesMetrics.hangmanGuessesTotal.add(1, {
+    kind:    recordedGuess.kind,
+    correct: String(recordedGuess.correct),
+    difficulty: state.difficulty,
+  });
+
   if (result.status !== HangmanStatus.Active) {
     state.status     = result.status;
     state.finishedAt = new Date().toISOString();
@@ -248,6 +260,13 @@ export const makeGuess = wrap(async (req: Request, res: Response) => {
       difficulty: state.difficulty,
       score,
     });
+
+    // Domain metrics for the finished game.
+    const outcome = won ? 'won' : 'lost';
+    const durationSec = (Date.parse(state.finishedAt) - Date.parse(state.createdAt)) / 1000;
+    gamesMetrics.gameFinishedTotal.add(1,   { game: GAME_LABEL, outcome, difficulty: state.difficulty });
+    gamesMetrics.gameScore.record(score,    { game: GAME_LABEL, outcome, difficulty: state.difficulty });
+    gamesMetrics.gameDurationSeconds.record(durationSec, { game: GAME_LABEL, outcome });
 
     // Submit score async — prefer the request's JWT, fall back to the stored playerId.
     // Losses still record a 0 in the leaderboard service so play history remains consistent.

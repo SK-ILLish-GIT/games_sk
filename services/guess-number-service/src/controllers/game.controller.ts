@@ -3,6 +3,8 @@ import { NextFunction, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 
+import { gamesMetrics } from '@games-platform/observability';
+
 import { config } from '../config';
 import { GuessSession, redis, gameKey, GAME_STATE_TTL } from '../db';
 import { logger } from '../utils/logger';
@@ -10,6 +12,8 @@ import { HTTP_STATUS, ANONYMOUS_PLAYER, GUEST_PLAYER_NAME } from '../constants/g
 import * as engine from '../game/engine';
 import { Hint } from '../game/engine';
 import type { GameState, JwtUserPayload } from '../types';
+
+const GAME_LABEL = 'guess-number';
 
 // Forwards async errors to the global error handler, avoiding boilerplate try-catch
 function wrap(fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) {
@@ -98,6 +102,7 @@ export const createGame = wrap(async (req: Request, res: Response) => {
 
   await saveState(state);
   logger.info('New game created', { gameId, playerId: state.playerId });
+  gamesMetrics.gameStartedTotal.add(1, { game: GAME_LABEL, difficulty: 'default' });
 
   // Strip secret from response — clients must never see the answer
   const { secret: _secret, ...safe } = state;
@@ -152,6 +157,12 @@ export const makeGuess = wrap(async (req: Request, res: Response) => {
     const score      = engine.calculateScore(state.attempts, won);
 
     logger.info('Game finished', { gameId, status: state.status, attempts: state.attempts, score });
+
+    const outcome = won ? 'won' : 'lost';
+    const durationSec = (Date.parse(state.finishedAt) - Date.parse(state.createdAt)) / 1000;
+    gamesMetrics.gameFinishedTotal.add(1, { game: GAME_LABEL, outcome, difficulty: 'default' });
+    gamesMetrics.gameScore.record(score, { game: GAME_LABEL, outcome, difficulty: 'default' });
+    gamesMetrics.gameDurationSeconds.record(durationSec, { game: GAME_LABEL, outcome });
 
     // Submit score async — prefer the request's JWT, fall back to the stored playerId
     const user = extractUser(req);

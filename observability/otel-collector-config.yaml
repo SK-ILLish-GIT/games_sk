@@ -1,0 +1,110 @@
+# OpenTelemetry Collector — single ingress for app telemetry.
+#
+# Pipeline summary:
+#   receivers:  OTLP (gRPC/HTTP) from app SDKs
+#   processors: batch + memory limiter + resource enrichment
+#   exporters:
+#     metrics → prometheus  (scraped at :8889/metrics by Prometheus)
+#     logs    → loki        (HTTP push API)
+#     traces  → tempo       (OTLP gRPC)
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  # Polls the Docker daemon's stats API and emits per-container CPU / memory /
+  # network / blockio metrics. Works on Docker Desktop (macOS/Windows) where
+  # cAdvisor can't enrich containers from the host filesystem.
+  docker_stats:
+    endpoint: unix:///var/run/docker.sock
+    # Docker Desktop requires API >= 1.40; the receiver default is 1.25.
+    api_version: "1.43"
+    collection_interval: 15s
+    timeout: 10s
+    container_labels_to_metric_labels:
+      com.docker.compose.service: compose_service
+      com.docker.compose.project: compose_project
+    metrics:
+      container.cpu.utilization:                { enabled: true }
+      container.memory.usage.total:             { enabled: true }
+      container.memory.percent:                 { enabled: true }
+      container.network.io.usage.rx_bytes:      { enabled: true }
+      container.network.io.usage.tx_bytes:      { enabled: true }
+      container.blockio.io_service_bytes_recursive: { enabled: true }
+
+processors:
+  memory_limiter:
+    check_interval: 2s
+    limit_percentage: 80
+    spike_limit_percentage: 25
+
+  batch:
+    send_batch_size: 1024
+    timeout: 5s
+
+  # Adds platform-wide resource attributes if the app didn't set them.
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: ${env:DEPLOY_ENV:-development}
+        action: insert
+      - key: service.namespace
+        value: games-platform
+        action: insert
+
+exporters:
+  # Tempo speaks OTLP gRPC natively.
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+  # Prometheus pulls metrics from the collector.
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true   # turn resource attrs (service.name, env...) into labels
+
+  # Loki HTTP push API.
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+    default_labels_enabled:
+      exporter: false
+      job: true
+
+  debug:
+    verbosity: basic
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+
+  pipelines:
+    traces:
+      receivers:  [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters:  [otlp/tempo]
+
+    metrics:
+      receivers:  [otlp, docker_stats]
+      processors: [memory_limiter, resource, batch]
+      exporters:  [prometheus]
+
+    logs:
+      receivers:  [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters:  [loki]
+
+  telemetry:
+    logs:
+      level: ${env:OTEL_LOG_LEVEL:-warn}
+    metrics:
+      # Bind on all interfaces so Prometheus can scrape collector internals.
+      address: 0.0.0.0:8888

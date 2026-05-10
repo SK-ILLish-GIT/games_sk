@@ -9,6 +9,10 @@ build/
 out/
 *.tsbuildinfo
 
+# Local materialisation of the shared observability package inside each service
+# (created by `npm install` of the file:./obs dependency; not source).
+services/*/obs/
+
 # ─── Environment & secrets ───────────────────────────────────────────────────
 .env
 # Keep the example so newcomers know what to fill in

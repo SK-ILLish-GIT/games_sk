@@ -3,6 +3,8 @@ import { NextFunction, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 
+import { gamesMetrics } from '@games-platform/observability';
+
 import { config } from '../config';
 import { TicTacToeSession, redis, gameKey, GAME_STATE_TTL } from '../db';
 import { logger } from '../utils/logger';
@@ -10,6 +12,8 @@ import { GAME_CONSTANTS, HTTP_STATUS, ANONYMOUS_PLAYER } from '../config/constan
 import * as engine from '../game/engine';
 import { Player, GameResult } from '../game/engine';
 import type { TicTacToeState, JwtUserPayload } from '../types';
+
+const GAME_LABEL = 'tic-tac-toe';
 
 /**
  * Wraps async Express route handlers to automatically catch and forward errors
@@ -124,6 +128,7 @@ export const createGame = wrap(async (req: Request, res: Response) => {
 
   await saveGameState(state);
   logger.info('New game session created', { gameId, playerX: state.playerX });
+  gamesMetrics.gameStartedTotal.add(1, { game: GAME_LABEL, difficulty: 'default' });
 
   res.status(HTTP_STATUS.CREATED).json({ success: true, data: state });
 });
@@ -194,10 +199,16 @@ export const makeMove = wrap(async (req: Request, res: Response) => {
 
     logger.info('Game finished', { gameId, winner: state.winner, totalMoves: state.moves.length });
 
+    const outcome = result === GameResult.Draw ? 'draw' : 'won';
+    const durationSec = (Date.parse(state.finishedAt) - Date.parse(state.createdAt)) / 1000;
+    const score = engine.scoreForResult(result, state.currentPlayer);
+    gamesMetrics.gameFinishedTotal.add(1, { game: GAME_LABEL, outcome, difficulty: 'default' });
+    gamesMetrics.gameScore.record(score, { game: GAME_LABEL, outcome, difficulty: 'default' });
+    gamesMetrics.gameDurationSeconds.record(durationSec, { game: GAME_LABEL, outcome });
+
     // Submit scores asynchronously if it's a registered user
     const user = extractUser(req);
     if (user) {
-      const score = engine.scoreForResult(result, state.currentPlayer);
       void submitScore(user.id, user.username, score); // fire-and-forget
     }
   } else {

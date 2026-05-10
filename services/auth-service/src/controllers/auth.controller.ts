@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { NextFunction, Request, Response } from 'express';
 
+import { gamesMetrics } from '@games-platform/observability';
+
 import { config } from '../config';
 import { prisma } from '../db';
 import { logger } from '../utils/logger';
@@ -30,6 +32,7 @@ export const register = wrap(async (req, res) => {
   const exists = await prisma.user.findFirst({ where: { OR: [{ username }, { email }] } });
   if (exists) {
     logger.warn('Registration rejected — username or email already taken', { username });
+    gamesMetrics.authRegistrationsTotal.add(1, { result: 'conflict' });
     res.status(HTTP_STATUS.CONFLICT).json({ success: false, error: 'Username or email already taken' });
     return;
   }
@@ -44,6 +47,7 @@ export const register = wrap(async (req, res) => {
   const refreshToken = await createRefreshToken(user.id);
 
   logger.info('User registered', { userId: user.id, username: user.username });
+  gamesMetrics.authRegistrationsTotal.add(1, { result: 'success' });
   res.status(HTTP_STATUS.CREATED).json({ success: true, data: { accessToken, refreshToken, user } });
 });
 
@@ -58,6 +62,7 @@ export const login = wrap(async (req, res) => {
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     // Log at warn (not error) — invalid credentials are expected traffic, not a server fault
     logger.warn('Failed login attempt', { username });
+    gamesMetrics.authLoginsTotal.add(1, { result: 'invalid_credentials' });
     res.status(HTTP_STATUS.UNAUTHORIZED).json({ success: false, error: 'Invalid credentials' });
     return;
   }
@@ -66,6 +71,7 @@ export const login = wrap(async (req, res) => {
   const refreshToken = await createRefreshToken(user.id);
 
   logger.info('User logged in', { userId: user.id, username: user.username });
+  gamesMetrics.authLoginsTotal.add(1, { result: 'success' });
   res.json({ success: true, data: { accessToken, refreshToken, user: { id: user.id, username: user.username, email: user.email, role: user.role } } });
 });
 

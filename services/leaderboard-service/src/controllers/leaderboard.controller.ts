@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
 import { NextFunction, Request, Response } from 'express';
 
+import { gamesMetrics } from '@games-platform/observability';
+
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { HTTP_STATUS } from '../constants/leaderboard.constants';
@@ -33,6 +35,7 @@ export const submitScore = wrap(async (req, res) => {
 
   const entry = await lb.submitScore({ userId, username, gameId, score: Number(score), metadata });
   logger.info('Score submitted', { userId, username, gameId, score: Number(score) });
+  gamesMetrics.leaderboardScoreSubmittedTotal.add(1, { game: String(gameId) });
   res.status(HTTP_STATUS.CREATED).json({ success: true, data: entry });
 });
 
@@ -45,6 +48,7 @@ export const getLeaderboard = wrap(async (req, res) => {
     config.leaderboard.maxLimit,
   );
   const entries = await lb.getLeaderboard(gameId, limit);
+  gamesMetrics.leaderboardLookupsTotal.add(1, { scope: 'per_game', game: String(gameId) });
   res.json({ success: true, data: entries });
 });
 
@@ -55,6 +59,7 @@ export const getGlobalLeaderboard = wrap(async (req, res) => {
     config.leaderboard.maxLimit,
   );
   const entries = await lb.getLeaderboard('global', limit);
+  gamesMetrics.leaderboardLookupsTotal.add(1, { scope: 'global', game: 'global' });
   res.json({ success: true, data: entries });
 });
 
@@ -69,5 +74,6 @@ export const getMyRank = wrap(async (req, res) => {
 
   const { gameId } = req.params;
   const result = await lb.getUserRank(gameId, payload.sub as string, payload.username);
+  gamesMetrics.leaderboardLookupsTotal.add(1, { scope: 'me', game: String(gameId) });
   res.json({ success: true, data: result });
 });
