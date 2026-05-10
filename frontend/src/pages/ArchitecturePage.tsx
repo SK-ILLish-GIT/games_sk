@@ -1,6 +1,107 @@
 import React, { useState } from 'react';
 import BlurText from '../components/ui/BlurText';
 import SpotlightCard from '../components/ui/SpotlightCard';
+import MermaidDiagram from '../components/ui/MermaidDiagram';
+
+/* ─────────────────────────────────────────────────────
+   Mermaid diagram sources
+───────────────────────────────────────────────────── */
+
+const SYSTEM_TOPOLOGY_DIAGRAM = `flowchart LR
+  Browser["🌐 React SPA<br/>Vite + TS"] -- HTTP --> Gateway
+
+  subgraph Gateway_Layer [" "]
+    Gateway["🔀 Nginx Gateway<br/>:3000"]
+  end
+
+  Gateway -- "/api/auth"          --> Auth["🔐 auth-service<br/>:3001"]
+  Gateway -- "/api/leaderboard"   --> LB["🏆 leaderboard-service<br/>:3002"]
+  Gateway -- "/api/tic-tac-toe"   --> TTT["⭕ tic-tac-toe-service<br/>:3003"]
+  Gateway -- "/api/guess-number"  --> GN["🎯 guess-number-service<br/>:3004"]
+  Gateway -- "/api/hangman"       --> HM["🪢 hangman-service<br/>:3005"]
+  Gateway -- "/"                  --> Frontend["⚛️ frontend<br/>:80"]
+
+  Auth --> Postgres[("🐘 PostgreSQL")]
+  Auth --> Redis[("⚡ Redis")]
+  LB   --> Postgres
+  LB   --> Redis
+  TTT  --> Mongo[("🍃 MongoDB")]
+  TTT  --> Redis
+  GN   --> Mongo
+  GN   --> Redis
+  HM   --> Mongo
+  HM   --> Redis
+
+  TTT  -.score POST.-> LB
+  GN   -.score POST.-> LB
+  HM   -.score POST.-> LB
+
+  classDef edge fill:#0e0e14,stroke:#7c6ef5,color:#e6e6f0;
+  classDef svc  fill:#1c1c24,stroke:#7c6ef5,color:#e6e6f0;
+  classDef data fill:#26262f,stroke:#4edb8c,color:#e6e6f0;
+  class Browser,Frontend,Gateway edge;
+  class Auth,LB,TTT,GN,HM svc;
+  class Postgres,Mongo,Redis data;
+  style Gateway_Layer fill:transparent,stroke:transparent;
+`;
+
+const OBSERVABILITY_PIPELINE_DIAGRAM = `flowchart LR
+  subgraph Apps [" Application services "]
+    direction TB
+    AppAuth["🔐 auth-service"]
+    AppLB["🏆 leaderboard-service"]
+    AppTTT["⭕ tic-tac-toe-service"]
+    AppGN["🎯 guess-number-service"]
+    AppHM["🪢 hangman-service"]
+  end
+
+  Promtail["📜 Promtail<br/>(tails Docker stdout)"]
+  Docker[("🐳 Docker Daemon")]
+
+  Apps -- "OTLP/gRPC :4317" --> Coll["📡 OTel Collector<br/>otel/opentelemetry-collector-contrib"]
+  Docker -- "docker_stats receiver" --> Coll
+  Promtail -- "loki push" --> Loki
+
+  Coll -- traces  --> Tempo["🧵 Tempo"]
+  Coll -- metrics --> Prom["📈 Prometheus"]
+  Coll -- logs    --> Loki["📦 Loki"]
+
+  Tempo -- "span-metrics<br/>remote_write" --> Prom
+
+  Tempo  --> Grafana["🖥️ Grafana<br/>6 dashboards"]
+  Prom   --> Grafana
+  Loki   --> Grafana
+
+  classDef app fill:#1c1c24,stroke:#7c6ef5,color:#e6e6f0;
+  classDef ingest fill:#26262f,stroke:#f5a26e,color:#e6e6f0;
+  classDef store fill:#26262f,stroke:#4edb8c,color:#e6e6f0;
+  classDef ui fill:#1c1c24,stroke:#f5617c,color:#e6e6f0;
+  class AppAuth,AppLB,AppTTT,AppGN,AppHM app;
+  class Coll,Promtail,Docker ingest;
+  class Tempo,Prom,Loki store;
+  class Grafana ui;
+`;
+
+const AUTH_FLOW_DIAGRAM = `sequenceDiagram
+  autonumber
+  participant Client
+  participant Gateway as Nginx Gateway
+  participant Auth as auth-service
+  participant DB as PostgreSQL
+  participant Redis
+
+  Client->>Gateway: POST /api/auth/login
+  Gateway->>Auth: POST /login
+  Auth->>DB: SELECT user, bcrypt.compare
+  Auth->>DB: INSERT refreshToken (sha256 hash)
+  Auth->>Redis: SET refresh:{hash} → userId
+  Auth-->>Client: { accessToken (15m), refreshToken (7d) }
+
+  Note over Client,Gateway: subsequent calls<br/>Authorization: Bearer ...
+  Client->>Gateway: GET /api/hangman/games (Bearer)
+  Gateway->>Auth: -- not contacted --
+  Note right of Gateway: each service verifies<br/>JWT locally, no DB hop
+`;
 
 /* ─────────────────────────────────────────────────────
    Data
@@ -49,6 +150,18 @@ const TECH_STACK = [
     role: 'Frontend',
     desc: 'A single-page React app built with Vite. JWT tokens are stored in memory via a Context provider — no localStorage — and refreshed silently on 401 responses via an Axios interceptor.',
   },
+  {
+    icon: '🔭',
+    name: 'OpenTelemetry',
+    role: 'Instrumentation',
+    desc: 'Every Node service runs the OTel SDK via node --require, with auto-instrumentations for Express, HTTP, ioredis, mongoose, pg, and axios. Domain metrics + structured JSON logs come from a shared @games-platform/observability package.',
+  },
+  {
+    icon: '📊',
+    name: 'Grafana Stack',
+    role: 'Observability Backend',
+    desc: 'OpenTelemetry Collector fans out OTLP to Prometheus (metrics), Loki (logs), and Tempo (traces). Six provisioned Grafana dashboards cover service RED metrics, container CPU/memory, auth funnel, and per-game gameplay analytics.',
+  },
 ];
 
 const SERVICES = [
@@ -88,7 +201,76 @@ const SERVICES = [
     desc: 'Runs Guess-the-Number sessions. The secret is never sent to the client — only hints. Scores reward guessing in fewer attempts.',
     endpoints: ['POST /games', 'GET /games/:id', 'POST /games/:id/guess'],
   },
+  {
+    name: 'hangman-service',
+    port: '3005',
+    db: 'MongoDB + Redis',
+    color: '#6ec1f5',
+    icon: '🪢',
+    desc: 'Hangman with easy / medium / hard difficulty tiers. Returns a masked-word view; reveals the word only after the game finishes.',
+    endpoints: ['POST /games', 'GET /games/:id', 'POST /games/:id/guess'],
+  },
 ];
+
+const OBSERVABILITY_STACK = [
+  {
+    icon: '📡',
+    name: 'OpenTelemetry Collector',
+    role: 'OTLP Ingress',
+    desc: 'Single ingress for app traces / metrics / logs over OTLP. Also runs the docker_stats receiver so per-container CPU / memory works on Docker Desktop.',
+  },
+  {
+    icon: '📈',
+    name: 'Prometheus',
+    role: 'Metrics Store',
+    desc: 'Scrapes the collector, node-exporter, and cAdvisor; stores time series. Tempo also remote-writes RED metrics generated from spans (request rate, error rate, latency histograms).',
+  },
+  {
+    icon: '📜',
+    name: 'Loki + Promtail',
+    role: 'Log Aggregation',
+    desc: 'Loki stores structured JSON logs. Promtail ships every container\'s stdout to Loki and parses level / trace_id / span_id so log → trace navigation works.',
+  },
+  {
+    icon: '🧵',
+    name: 'Tempo',
+    role: 'Trace Backend',
+    desc: 'Stores distributed traces and runs a metrics generator that emits service-graph and span-metrics back to Prometheus.',
+  },
+  {
+    icon: '🖥️',
+    name: 'Grafana',
+    role: 'Single Pane of Glass',
+    desc: 'Six provisioned dashboards (Overview, Auth, combined Games, Hangman, Guess Number, Tic-Tac-Toe) with bidirectional Loki ↔ Tempo links — click a trace_id in a log to open its trace in a side panel.',
+  },
+];
+
+type MetricType = 'counter' | 'histogram' | 'gauge';
+
+const CUSTOM_METRICS: {
+  name: string;
+  type: MetricType;
+  unit?: string;
+  labels: string;
+  source: string;
+}[] = [
+  { name: 'auth_registrations_total',           type: 'counter',   labels: 'result',                             source: 'auth' },
+  { name: 'auth_logins_total',                  type: 'counter',   labels: 'result',                             source: 'auth' },
+  { name: 'auth_active_sessions',               type: 'gauge',     labels: '—',                                  source: 'auth' },
+  { name: 'games_started_total',                type: 'counter',   labels: 'game, difficulty',                   source: 'all games' },
+  { name: 'games_finished_total',               type: 'counter',   labels: 'game, outcome, difficulty',          source: 'all games' },
+  { name: 'games_score_*',                      type: 'histogram', labels: 'game, outcome, difficulty',          source: 'all games' },
+  { name: 'games_duration_seconds_*',           type: 'histogram', unit: 's', labels: 'game, outcome',           source: 'all games' },
+  { name: 'hangman_guesses_total',              type: 'counter',   labels: 'kind, correct, difficulty',          source: 'hangman' },
+  { name: 'leaderboard_score_submitted_total',  type: 'counter',   labels: 'game',                               source: 'leaderboard' },
+  { name: 'leaderboard_lookups_total',          type: 'counter',   labels: 'scope, game',                        source: 'leaderboard' },
+];
+
+const METRIC_TYPE_COLOR: Record<MetricType, string> = {
+  counter:   '#7c6ef5',
+  histogram: '#f5a26e',
+  gauge:     '#4edb8c',
+};
 
 const DESIGN_DECISIONS = [
   {
@@ -120,6 +302,21 @@ const DESIGN_DECISIONS = [
     title: 'Per-Service Config Modules',
     icon: '🗂️',
     body: `Each service has a single src/config/index.ts that reads all environment variables once, applies safe defaults, and exports a typed config object. No file reads process.env directly — everything goes through config.`,
+  },
+  {
+    title: 'Zero-Code OTel Bootstrap',
+    icon: '🔭',
+    body: `Each Dockerfile launches the service with node --require @games-platform/observability/tracing. The shared package starts the OTel SDK before any instrumented library loads — no code change in app entry points. Auto-instrumentation covers Express, HTTP, ioredis, mongoose, pg, and axios.`,
+  },
+  {
+    title: 'Standardised Logger with Trace Correlation',
+    icon: '📝',
+    body: `All five services use createLogger(serviceName) from the shared observability package. Every log line is JSON, includes service / level / timestamp, and carries trace_id and span_id when emitted inside an active span. Loki's derived fields turn the trace_id into a clickable link to Tempo.`,
+  },
+  {
+    title: 'Lazy-Resolved Custom Metrics',
+    icon: '⏱️',
+    body: `gamesMetrics is a Proxy that resolves each instrument against the current global meter on every access. This avoids a real-world OTel gotcha where instruments imported before initTelemetry() bind to the no-op default provider and silently drop every record.`,
   },
 ];
 
@@ -172,6 +369,96 @@ function Arrow({ label }: { label?: string }) {
   );
 }
 
+function MetricsTable() {
+  return (
+    <div style={{
+      overflowX: 'auto',
+      borderRadius: 'var(--radius-sm)',
+      border: '1px solid var(--c-border)',
+      background: 'var(--c-surface2)',
+    }}>
+      <table style={{
+        width: '100%',
+        borderCollapse: 'collapse',
+        fontSize: '0.82rem',
+        minWidth: 720,
+      }}>
+        <thead>
+          <tr style={{
+            background: 'rgba(124, 110, 245, 0.08)',
+            borderBottom: '1px solid var(--c-border)',
+          }}>
+            {[
+              { label: 'Metric',   width: '38%', align: 'left'  as const },
+              { label: 'Type',     width: '14%', align: 'left'  as const },
+              { label: 'Unit',     width: '8%',  align: 'left'  as const },
+              { label: 'Labels',   width: '26%', align: 'left'  as const },
+              { label: 'Source',   width: '14%', align: 'left'  as const },
+            ].map(col => (
+              <th key={col.label} style={{
+                padding: '0.55rem 0.85rem',
+                textAlign: col.align,
+                width: col.width,
+                fontSize: '0.7rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                color: 'var(--c-text-muted)',
+                fontWeight: 700,
+              }}>{col.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {CUSTOM_METRICS.map((m, idx) => (
+            <tr key={m.name} style={{
+              borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.04)',
+              background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
+            }}>
+              <td style={{
+                padding: '0.5rem 0.85rem',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                fontSize: '0.78rem',
+                color: 'var(--c-text)',
+              }}>{m.name}</td>
+              <td style={{ padding: '0.5rem 0.85rem' }}>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '0.1rem 0.55rem',
+                  borderRadius: '999px',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  background: `${METRIC_TYPE_COLOR[m.type]}1f`,
+                  color: METRIC_TYPE_COLOR[m.type],
+                  border: `1px solid ${METRIC_TYPE_COLOR[m.type]}55`,
+                  letterSpacing: '0.04em',
+                }}>{m.type}</span>
+              </td>
+              <td style={{
+                padding: '0.5rem 0.85rem',
+                color: 'var(--c-text-muted)',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                fontSize: '0.78rem',
+              }}>{m.unit ?? '—'}</td>
+              <td style={{
+                padding: '0.5rem 0.85rem',
+                color: 'var(--c-text-muted)',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                fontSize: '0.78rem',
+              }}>{m.labels}</td>
+              <td style={{
+                padding: '0.5rem 0.85rem',
+                color: 'var(--c-text-muted)',
+                fontSize: '0.78rem',
+              }}>{m.source}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /* ─────────────────────────────────────────────────────
    Main Page
 ───────────────────────────────────────────────────── */
@@ -202,47 +489,35 @@ export default function ArchitecturePage() {
           <SectionLabel>Request Flow</SectionLabel>
           <h2 style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>How a request travels through the system</h2>
 
-          {/* Flow row */}
-          <div style={{ overflowX: 'auto', paddingBottom: '0.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 680 }}>
+          {/* Mermaid topology */}
+          <MermaidDiagram chart={SYSTEM_TOPOLOGY_DIAGRAM} minWidth={780} />
 
-              <DiagramBox icon="🌐" label="Browser" sub="React SPA" color="#7c6ef5" />
-              <Arrow label="HTTPS" />
-              <DiagramBox icon="🔀" label="Nginx" sub="Port 3000" color="#f5a26e" />
-              <Arrow label="proxy" />
-
-              {/* Service cluster */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {SERVICES.map(s => (
-                  <button
-                    key={s.name}
-                    onClick={() => setActiveService(prev => prev === s.name ? null : s.name)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '0.5rem',
-                      background: activeService === s.name ? `${s.color}22` : 'var(--c-surface2)',
-                      border: `2px solid ${activeService === s.name ? s.color : 'var(--c-border)'}`,
-                      borderRadius: 'var(--radius-sm)', padding: '0.45rem 0.9rem',
-                      cursor: 'pointer', transition: 'all 0.2s ease',
-                      boxShadow: activeService === s.name ? `0 0 14px ${s.color}44` : 'none',
-                      fontFamily: 'var(--font)', whiteSpace: 'nowrap',
-                      color: activeService === s.name ? s.color : 'var(--c-text)',
-                    }}
-                  >
-                    <span>{s.icon}</span>
-                    <span style={{ fontWeight: 600, fontSize: '0.8rem' }}>{s.name}</span>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--c-text-muted)', marginLeft: '0.25rem' }}>:{s.port}</span>
-                  </button>
-                ))}
-              </div>
-
-              <Arrow />
-
-              {/* Data stores */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <DiagramBox icon="🐘" label="PostgreSQL" sub="Users & scores" color="#4edb8c" />
-                <DiagramBox icon="🍃" label="MongoDB" sub="Game state" color="#4edb8c" />
-                <DiagramBox icon="⚡" label="Redis" sub="Cache & ranks" color="#4edb8c" />
-              </div>
+          {/* Interactive picker */}
+          <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--c-border)', paddingTop: '1.25rem' }}>
+            <p style={{ fontSize: '0.78rem', color: 'var(--c-text-muted)', marginBottom: '0.6rem', letterSpacing: '0.04em' }}>
+              Click a service to see its endpoints
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              {SERVICES.map(s => (
+                <button
+                  key={s.name}
+                  onClick={() => setActiveService(prev => prev === s.name ? null : s.name)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    background: activeService === s.name ? `${s.color}22` : 'var(--c-surface2)',
+                    border: `2px solid ${activeService === s.name ? s.color : 'var(--c-border)'}`,
+                    borderRadius: 'var(--radius-sm)', padding: '0.45rem 0.9rem',
+                    cursor: 'pointer', transition: 'all 0.2s ease',
+                    boxShadow: activeService === s.name ? `0 0 14px ${s.color}44` : 'none',
+                    fontFamily: 'var(--font)', whiteSpace: 'nowrap',
+                    color: activeService === s.name ? s.color : 'var(--c-text)',
+                  }}
+                >
+                  <span>{s.icon}</span>
+                  <span style={{ fontWeight: 600, fontSize: '0.8rem' }}>{s.name}</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--c-text-muted)', marginLeft: '0.25rem' }}>:{s.port}</span>
+                </button>
+              ))}
             </div>
           </div>
 
@@ -274,11 +549,6 @@ export default function ArchitecturePage() {
             </div>
           )}
 
-          {!selected && (
-            <p style={{ marginTop: '1rem', fontSize: '0.8rem', textAlign: 'center', color: 'var(--c-text-muted)' }}>
-              Click a service above to see its endpoints and responsibilities
-            </p>
-          )}
         </SpotlightCard>
 
         {/* ── Services Grid ── */}
@@ -320,6 +590,76 @@ export default function ArchitecturePage() {
               </SpotlightCard>
             ))}
           </div>
+        </div>
+
+        {/* ── Observability ── */}
+        <div style={{ marginBottom: '3rem' }}>
+          <SectionLabel>Observability</SectionLabel>
+          <h2 style={{ marginBottom: '1.25rem' }}>How we see what the platform is doing</h2>
+
+          <SpotlightCard className="card" style={{ marginBottom: '1rem', overflow: 'hidden' }} spotlightColor="rgba(78, 219, 140, 0.12)">
+            <p style={{ fontSize: '0.9rem', marginBottom: '1.25rem' }}>
+              Every Node service is OpenTelemetry-instrumented via the shared
+              <code style={{ background: 'var(--c-surface2)', padding: '0.1rem 0.4rem', margin: '0 0.25rem', borderRadius: '4px', fontSize: '0.8rem' }}>@games-platform/observability</code>
+              package. Telemetry flows through a single OpenTelemetry Collector
+              that fans out to Prometheus, Loki, and Tempo — all visualised in Grafana.
+            </p>
+
+            <MermaidDiagram chart={OBSERVABILITY_PIPELINE_DIAGRAM} minWidth={820} />
+
+            <p style={{ fontSize: '0.78rem', color: 'var(--c-text-muted)', textAlign: 'center', marginTop: '1rem' }}>
+              Promtail tails every container's stdout into Loki; the
+              collector's <code style={{ background: 'var(--c-surface2)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.78rem' }}>docker_stats</code>
+              receiver emits per-container CPU / memory; Tempo's metrics generator
+              remote-writes RED metrics back to Prometheus.
+            </p>
+          </SpotlightCard>
+
+          {/* Stack components */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+            {OBSERVABILITY_STACK.map(t => (
+              <SpotlightCard key={t.name} className="card" style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }} spotlightColor="rgba(78, 219, 140, 0.08)">
+                <span style={{ fontSize: '1.75rem', flexShrink: 0 }}>{t.icon}</span>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+                    <p style={{ fontWeight: 700, color: 'var(--c-text)', margin: 0, fontSize: '0.95rem' }}>{t.name}</p>
+                    <span className="badge badge-accent" style={{ fontSize: '0.65rem' }}>{t.role}</span>
+                  </div>
+                  <p style={{ fontSize: '0.875rem' }}>{t.desc}</p>
+                </div>
+              </SpotlightCard>
+            ))}
+          </div>
+
+          {/* Custom metrics table */}
+          <SpotlightCard className="card" spotlightColor="rgba(124, 110, 245, 0.1)">
+            <p style={{ fontWeight: 700, marginBottom: '0.5rem', fontSize: '0.95rem', color: 'var(--c-text)' }}>Custom domain metrics</p>
+            <p style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
+              Defined once in <code style={{ background: 'var(--c-surface2)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.78rem' }}>packages/observability/src/index.ts</code>,
+              recorded across services. Names below are the Prometheus form
+              (dots&nbsp;→ underscores, plus type / unit suffixes).
+            </p>
+            <MetricsTable />
+          </SpotlightCard>
+
+          {/* Dashboards */}
+          <SpotlightCard className="card" style={{ marginTop: '1rem' }} spotlightColor="rgba(245, 162, 110, 0.1)">
+            <p style={{ fontWeight: 700, marginBottom: '0.5rem', fontSize: '0.95rem', color: 'var(--c-text)' }}>Provisioned Grafana dashboards</p>
+            <ul style={{ paddingLeft: '1.1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', margin: 0 }}>
+              {[
+                ['Overview', 'RED metrics by service, container CPU / memory, recent errors across the platform'],
+                ['Auth Service', 'active sessions gauge, registrations / logins by result, login-failure rate, per-route p95'],
+                ['Games (combined)', 'started/finished by game, win-rate by game and Hangman difficulty, score histogram, leaderboard activity'],
+                ['Hangman', 'guesses/sec by kind & correctness, accuracy by difficulty, score & duration distributions'],
+                ['Guess Number', 'outcome rate, score histogram, duration p50/p95'],
+                ['Tic-Tac-Toe', 'won vs draw rate, outcome timeseries, score & duration distributions'],
+              ].map(([title, desc]) => (
+                <li key={title} style={{ fontSize: '0.85rem', color: 'var(--c-text-muted)' }}>
+                  <span style={{ fontWeight: 600, color: 'var(--c-text)' }}>{title}</span> — {desc}
+                </li>
+              ))}
+            </ul>
+          </SpotlightCard>
         </div>
 
         {/* ── Design Decisions ── */}
@@ -368,6 +708,7 @@ export default function ArchitecturePage() {
                 {[
                   'TicTacToeSession — gameId, board[], currentPlayer, status, winner, moves[]',
                   'GuessSession — gameId, secret, attempts, maxAttempts, guesses[], status',
+                  'HangmanSession — gameId, word, difficulty, guessedLetters[], wrongGuesses, guesses[], status',
                 ].map(item => <li key={item} style={{ fontSize: '0.85rem', color: 'var(--c-text-muted)' }}>{item}</li>)}
               </ul>
             </div>
@@ -379,6 +720,7 @@ export default function ArchitecturePage() {
                   'refresh:{hash} → userId (TTL = token expiry)',
                   'game:ttt:{id} → serialized game state (TTL 1h)',
                   'game:guess:{id} → serialized game state (TTL 1h)',
+                  'game:hangman:{id} → serialized game state (TTL 1h)',
                   'leaderboard:{gameId} → Sorted Set, score→userId:username',
                   'leaderboard:global → Sorted Set, cross-game ranking',
                 ].map(item => <li key={item} style={{ fontSize: '0.85rem', color: 'var(--c-text-muted)', fontFamily: 'monospace' }}>{item}</li>)}
@@ -391,6 +733,11 @@ export default function ArchitecturePage() {
         <div style={{ marginBottom: '3rem' }}>
           <SectionLabel>Security</SectionLabel>
           <h2 style={{ marginBottom: '1.25rem' }}>Authentication & token lifecycle</h2>
+
+          <SpotlightCard className="card" style={{ marginBottom: '1rem' }} spotlightColor="rgba(124, 110, 245, 0.1)">
+            <MermaidDiagram chart={AUTH_FLOW_DIAGRAM} minWidth={680} />
+          </SpotlightCard>
+
           <div className="card">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1.25rem' }}>
               {[
@@ -419,9 +766,12 @@ export default function ArchitecturePage() {
         {/* ── Footer note ── */}
         <div className="card" style={{ background: 'linear-gradient(135deg, rgba(124,110,245,0.08), rgba(245,162,110,0.06))', borderColor: 'rgba(124,110,245,0.25)', textAlign: 'center' }}>
           <p style={{ fontSize: '0.9rem', color: 'var(--c-text)' }}>
-            All services run in Docker with health checks. The Nginx gateway only starts once every
-            service is healthy. Structured JSON logs are emitted at INFO / WARN / ERROR levels.
-            Environment variables are validated at startup with safe defaults.
+            All services run in Docker with health checks. The Nginx gateway only starts
+            once every service is healthy. Structured JSON logs include <code style={{ background: 'var(--c-surface2)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.8rem' }}>trace_id</code> /
+            <code style={{ background: 'var(--c-surface2)', padding: '0.1rem 0.4rem', margin: '0 0.2rem', borderRadius: '4px', fontSize: '0.8rem' }}>span_id</code>
+            for log ↔ trace navigation in Grafana. Environment variables are validated at
+            startup with safe defaults. The observability overlay is opt-in via a second
+            compose file — apps run identically with or without it.
           </p>
         </div>
 
