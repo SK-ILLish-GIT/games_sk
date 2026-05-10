@@ -2,7 +2,7 @@
 
 ## Overview
 
-A production-grade microservices gaming platform where each game runs as an independent Docker container. A central platform layer provides shared authentication, leaderboard, and API gateway services.
+A production-grade microservices gaming platform where each game runs as an independent Docker container. A central platform layer provides shared authentication, leaderboard, and API gateway services...
 
 ## System Diagram
 
