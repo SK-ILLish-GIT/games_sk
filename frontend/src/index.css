@@ -1,9 +1,9 @@
 /* ── Design System ──────────────────────────────────────────────── */
 :root {
-  --c-bg:          #09090b;
-  --c-surface:     #121216;
-  --c-surface2:    #1c1c21;
-  --c-border:      #27272a;
+  --c-bg:          #13131a;
+  --c-surface:     #1e1e28;
+  --c-surface2:    #282832;
+  --c-border:      #363644;
   --c-accent:      #818cf8;
   --c-accent-glow: rgba(129, 140, 248, 0.2);
   --c-accent2:     #fbbf24;
@@ -24,18 +24,18 @@
 }
 
 [data-theme="light"] {
-  --c-bg:          #f8fafc;
-  --c-surface:     #ffffff;
-  --c-surface2:    #f1f5f9;
-  --c-border:      #e2e8f0;
+  --c-bg:          #ebe4d8;
+  --c-surface:     #faf6ef;
+  --c-surface2:    #e8dfd2;
+  --c-border:      #d4cbc0;
   --c-accent:      #6366f1;
   --c-accent-glow: rgba(99, 102, 241, 0.15);
   --c-accent2:     #f59e0b;
   --c-accent2-glow:rgba(245, 158, 11, 0.15);
   --c-green:       #10b981;
   --c-red:         #ef4444;
-  --c-text:        #0f172a;
-  --c-text-muted:  #64748b;
+  --c-text:        #1f1c18;
+  --c-text-muted:  #5c554d;
 
   --shadow-card: 0 4px 20px rgba(15, 23, 42, 0.06);
   --shadow-glow: 0 0 20px var(--c-accent-glow);
@@ -77,12 +77,17 @@ a  { color: var(--c-accent); text-decoration: none; }
 
 /* ── Glass card ─────────────────────────────────────────────────── */
 .card {
-  background: var(--c-surface);
+  background: color-mix(in srgb, var(--c-surface) 86%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   padding: 1.5rem;
   transition: background-color 0.4s ease, border-color 0.4s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+[data-theme="light"] .card {
+  background: color-mix(in srgb, var(--c-surface) 93%, transparent);
 }
 .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-card), var(--shadow-glow); border-color: var(--c-accent); }
 
@@ -182,7 +187,9 @@ label { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; font-weight:
 .game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; }
 
 .game-card {
-  background: var(--c-surface);
+  background: color-mix(in srgb, var(--c-surface) 86%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -191,6 +198,9 @@ label { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; font-weight:
   text-decoration: none;
   color: inherit;
   display: block;
+}
+[data-theme="light"] .game-card {
+  background: color-mix(in srgb, var(--c-surface) 93%, transparent);
 }
 .game-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-card), var(--shadow-glow); border-color: var(--c-accent); }
 .game-card-cover {
@@ -209,7 +219,7 @@ label { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; font-weight:
   text-align: left; padding: 1rem;
   font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--c-text-muted); border-bottom: 1px solid var(--c-border);
-  background: var(--c-surface2);
+  background: color-mix(in srgb, var(--c-surface2) 82%, transparent);
 }
 .lb-row {
   transition: background-color 0.2s ease;
@@ -217,7 +227,7 @@ label { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; font-weight:
 .lb-row:hover {
   background: rgba(124, 110, 245, 0.05);
 }
-.lb-table td { padding: 1.1rem 1rem; border-bottom: 1px solid rgba(42,47,80,0.5); font-size: 0.95rem; transition: var(--transition); }
+.lb-table td { padding: 1.1rem 1rem; border-bottom: 1px solid color-mix(in srgb, var(--c-border) 55%, transparent); font-size: 0.95rem; transition: var(--transition); }
 .lb-table tr:last-child td { border-bottom: none; }
 .lb-rank { font-weight: 800; font-size: 1.1rem; width: 48px; }
 .lb-rank-1 { color: #ffd700; text-shadow: 0 0 10px rgba(255,215,0,0.3); }
@@ -336,7 +346,7 @@ label { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; font-weight:
 [data-theme="light"] .theme-slider:before {
   content: "☀️";
   font-size: 12px;
-  background-color: #fff;
+  background-color: var(--c-surface);
 }
 .theme-switch input:checked + .theme-slider {
   background-color: var(--c-accent);

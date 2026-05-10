@@ -78,7 +78,7 @@ export default function LeaderboardPage() {
           })}
         </div>
 
-        <SpotlightCard className="card" style={{ padding: '0', overflow: 'hidden' }} spotlightColor="rgba(255, 255, 255, 0.05)">
+        <SpotlightCard className="card" style={{ padding: '0', overflow: 'hidden' }} spotlightColor="rgba(232, 223, 210, 0.14)">
           {loading && <Loader />}
           {error && <div className="alert alert-error" style={{ margin: '1rem' }}>{error}</div>}
           {!loading && !error && entries.length === 0 && (
