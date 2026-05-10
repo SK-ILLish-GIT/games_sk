@@ -23,6 +23,15 @@ const GAMES = [
     badgeClass: 'badge-orange',
     path: '/guess-number',
   },
+  {
+    id: 'hangman',
+    emoji: '🪢',
+    title: 'Hangman',
+    description: 'Guess the hidden word one letter at a time. Six wrong guesses and the round is over — pick easy, medium, or hard.',
+    badge: 'Word',
+    badgeClass: 'badge-accent',
+    path: '/hangman',
+  },
 ];
 
 export default function HomePage() {

@@ -4,6 +4,7 @@
 export enum GameId {
   TicTacToe  = 'tic-tac-toe',
   GuessNumber = 'guess-number',
+  Hangman    = 'hangman',
 }
 
 /** Roles that can be assigned to a user */

@@ -1,5 +1,5 @@
-import { UserRole, TicTacToeUIStatus, TicTacToeStatus, GuessStatus, Hint } from '../enums/game.enum';
-export { UserRole, GuessStatus, Hint } from '../enums/game.enum';
+import { UserRole, TicTacToeUIStatus, TicTacToeStatus, GuessStatus, Hint, HangmanStatus, HangmanDifficulty } from '../enums/game.enum';
+export { UserRole, GuessStatus, Hint, HangmanStatus, HangmanDifficulty } from '../enums/game.enum';
 export interface User {
   id: string;
   username: string;
@@ -74,6 +74,52 @@ export interface GuessNumberGame {
   guesses: GuessEntry[];
   attemptsLeft?: number;
   hint?: Hint;
+}
+
+// ── Hangman ──────────────────────────────────────────────────────
+export type HangmanPositionStatus = 'correct' | 'present' | 'absent';
+
+export interface HangmanLetterFeedback {
+  occurrences: number;
+  positions:   number[];
+}
+
+export interface HangmanWordFeedback {
+  perPosition:      HangmanPositionStatus[];
+  correctPositions: number;
+  presentLetters:   number;
+}
+
+export interface HangmanLetterGuess {
+  kind:      'letter';
+  value:     string;
+  correct:   boolean;
+  feedback:  HangmanLetterFeedback;
+  timestamp?: string;
+}
+
+export interface HangmanWordGuess {
+  kind:      'word';
+  value:     string;
+  correct:   boolean;
+  feedback:  HangmanWordFeedback;
+  timestamp?: string;
+}
+
+export type HangmanGuessRecord = HangmanLetterGuess | HangmanWordGuess;
+
+export interface HangmanGame {
+  gameId:         string;
+  status:         HangmanStatus;
+  difficulty:     HangmanDifficulty;
+  maskedWord:     string;
+  word?:          string;        // only present once the game has finished
+  guessedLetters: string[];
+  wrongGuesses:   number;
+  maxWrong:       number;
+  guesses:        HangmanGuessRecord[];
+  lastGuess?:     HangmanGuessRecord;
+  attemptsLeft?:  number;
 }
 
 // ── Generic API wrapper ───────────────────────────────────────────

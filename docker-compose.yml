@@ -146,6 +146,30 @@ services:
       timeout: 5s
       retries: 5
 
+  hangman-service:
+    build:
+      context: ./services/hangman-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 3005
+      MONGO_URL: mongodb://${MONGO_INITDB_ROOT_USERNAME:-gamesadmin}:${MONGO_INITDB_ROOT_PASSWORD:-gamespassword}@mongo:27017/${MONGO_DB:-games}?authSource=admin
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-min-32-chars}
+      LEADERBOARD_SERVICE_URL: http://leaderboard-service:3002
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      leaderboard-service:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3005/health || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
   # ──────────────────────────────────────────────────────────────────
   # Frontend + Gateway
   # ──────────────────────────────────────────────────────────────────
@@ -170,6 +194,8 @@ services:
       tic-tac-toe-service:
         condition: service_healthy
       guess-number-service:
+        condition: service_healthy
+      hangman-service:
         condition: service_healthy
       frontend:
         condition: service_started

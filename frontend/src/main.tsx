@@ -9,6 +9,7 @@ import { LoginPage, RegisterPage } from './pages/AuthPages';
 import LeaderboardPage from './pages/LeaderboardPage';
 import TicTacToePage from './pages/TicTacToePage';
 import GuessNumberPage from './pages/GuessNumberPage';
+import HangmanPage from './pages/HangmanPage';
 import ArchitecturePage from './pages/ArchitecturePage';
 import ProfilePage from './pages/ProfilePage';
 import './index.css';
@@ -27,6 +28,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/leaderboard"  element={<LeaderboardPage />} />
             <Route path="/tic-tac-toe"  element={<TicTacToePage />} />
             <Route path="/guess-number" element={<GuessNumberPage />} />
+            <Route path="/hangman"      element={<HangmanPage />} />
             <Route path="/architecture" element={<ArchitecturePage />} />
             <Route path="*" element={
               <div className="flex-center" style={{ minHeight: '60vh', flexDirection: 'column', gap: '1rem' }}>

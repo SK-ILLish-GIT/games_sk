@@ -70,6 +70,14 @@ export const guessAPI = {
   guess: (id: string, guess: number) => api.post(`/guess-number/games/${id}/guess`, { guess }),
 };
 
+// Hangman
+export const hangmanAPI = {
+  create: (difficulty?: 'easy' | 'medium' | 'hard') => api.post('/hangman/games', difficulty ? { difficulty } : {}),
+  get: (id: string) => api.get(`/hangman/games/${id}`),
+  guessLetter: (id: string, letter: string) => api.post(`/hangman/games/${id}/guess`, { letter }),
+  guessWord:   (id: string, word: string)   => api.post(`/hangman/games/${id}/guess`, { word }),
+};
+
 // Helper to extract error message safely from Axios errors (replaces `err: any` catch patterns)
 export function getApiErrorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {

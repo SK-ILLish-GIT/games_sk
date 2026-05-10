@@ -280,6 +280,109 @@ label { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; font-weight:
 .guess-meter { height: 8px; background: var(--c-surface2); border-radius: 99px; overflow: hidden; max-width: 360px; margin: 0 auto 1.5rem; }
 .guess-meter-fill { height: 100%; background: linear-gradient(90deg, var(--c-green), var(--c-accent2), var(--c-red)); border-radius: 99px; transition: width 0.4s ease; }
 
+/* Hangman */
+.hangman-word {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 1rem 0 1.5rem;
+  font-family: 'Outfit', system-ui, sans-serif;
+}
+.hangman-letter {
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 2.25rem;
+  padding: 0.25rem 0.4rem 0.5rem;
+  border-bottom: 3px solid var(--c-border);
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--c-text);
+  text-transform: uppercase;
+}
+.hangman-letter.is-blank { color: transparent; border-bottom-color: var(--c-accent); }
+
+.hangman-keyboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(2.2rem, 1fr));
+  gap: 0.4rem;
+  max-width: 540px;
+  margin: 0 auto;
+}
+.hangman-key {
+  padding: 0.6rem 0.4rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--c-border);
+  background: var(--c-surface2);
+  color: var(--c-text);
+  font-family: 'Outfit', system-ui, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.hangman-key:hover:not(:disabled) { border-color: var(--c-accent); color: var(--c-accent); transform: translateY(-1px); }
+.hangman-key:disabled { cursor: not-allowed; opacity: 0.55; }
+.hangman-key.is-correct { background: rgba(16,185,129,0.18); border-color: var(--c-green); color: var(--c-green); }
+.hangman-key.is-wrong   { background: rgba(244,63,94,0.16);  border-color: var(--c-red);   color: var(--c-red);   }
+
+.hangman-history-wrap { max-width: 540px; margin: 1.75rem auto 0; }
+.hangman-history-title {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--c-text-muted);
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+.hangman-history { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+.hangman-guess {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.9rem;
+  background: var(--c-surface2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+}
+.hangman-guess-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem; height: 1.85rem;
+  border-radius: 50%;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  font-weight: 700;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.hangman-guess-detail { color: var(--c-text-muted); font-size: 0.85rem; }
+.hangman-guess-word { flex-direction: column; align-items: stretch; gap: 0.5rem; }
+.hangman-guess-word .hangman-guess-detail { text-align: right; }
+.hangman-guess-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.hangman-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem; height: 1.75rem;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text);
+}
+.hangman-chip.is-correct { background: rgba(16,185,129,0.22);  border-color: var(--c-green);   color: var(--c-green);   }
+.hangman-chip.is-present { background: rgba(251,191,36,0.22);  border-color: var(--c-accent2); color: var(--c-accent2); }
+.hangman-chip.is-absent  { opacity: 0.55; }
+
 /* ── Alert/toast ─────────────────────────────────────────────────── */
 .alert { padding: 0.75rem 1rem; border-radius: var(--radius-sm); font-size: 0.9rem; margin-bottom: 1rem; }
 .alert-success { background: rgba(78,219,140,0.12); border: 1px solid rgba(78,219,140,0.35); color: var(--c-green); }

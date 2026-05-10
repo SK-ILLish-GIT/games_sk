@@ -49,6 +49,7 @@ A production-grade microservices gaming platform where each game runs as an inde
 | **leaderboard-service** | 3002 | Node/Express + Redis | Score submission, ranked leaderboards |
 | **tic-tac-toe-service** | 3003 | Node/Express + Mongoose | Game logic, state via Redis+MongoDB |
 | **guess-number-service** | 3004 | Node/Express + Mongoose | Guess game, scoring, state caching |
+| **hangman-service**  | 3005 | Node/Express + Mongoose  | Hangman, difficulty tiers, masked-word view |
 | **postgres**         | 5432 | PostgreSQL 16            | Auth users, refresh tokens, scores     |
 | **mongo**            | 27017 | MongoDB 7               | Game sessions, move history            |
 | **redis**            | 6379 | Redis 7                  | Cache, sessions, leaderboard, pub/sub  |
@@ -96,6 +97,7 @@ Client → POST /api/tic-tac-toe/games/:id/move
 | `leaderboard:global`          | Sorted Set   | —    | All-games combined          |
 | `game:ttt:{gameId}`           | JSON String  | 1h   | Tic-tac-toe state cache     |
 | `game:guess:{gameId}`         | JSON String  | 1h   | Guess-number state cache    |
+| `game:hangman:{gameId}`       | JSON String  | 1h   | Hangman state cache         |
 
 ## Adding a New Game
 

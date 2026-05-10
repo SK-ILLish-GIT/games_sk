@@ -35,8 +35,23 @@ export enum Hint {
   Correct = 'correct',
 }
 
+/** Hangman game status as returned by the API */
+export enum HangmanStatus {
+  Active = 'active',
+  Won    = 'won',
+  Lost   = 'lost',
+}
+
+/** Hangman difficulty levels */
+export enum HangmanDifficulty {
+  Easy   = 'easy',
+  Medium = 'medium',
+  Hard   = 'hard',
+}
+
 /** Known game IDs used in API routes */
 export enum GameId {
   TicTacToe   = 'tic-tac-toe',
   GuessNumber = 'guess-number',
+  Hangman     = 'hangman',
 }
