@@ -51,9 +51,9 @@ export const authAPI = {
 
 // Leaderboard
 export const leaderboardAPI = {
-  getGlobal: (limit = 50) => api.get(`/leaderboard/leaderboard/global?limit=${limit}`),
-  getByGame: (gameId: string, limit = 50) => api.get(`/leaderboard/leaderboard/${gameId}?limit=${limit}`),
-  getMyRank: (gameId: string) => api.get(`/leaderboard/leaderboard/${gameId}/me`),
+  getGlobal: (limit = 50) => api.get(`/leaderboard/global?limit=${limit}`),
+  getByGame: (gameId: string, limit = 50) => api.get(`/leaderboard/${gameId}?limit=${limit}`),
+  getMyRank: (gameId: string) => api.get(`/leaderboard/${gameId}/me`),
 };
 
 // Tic-Tac-Toe
