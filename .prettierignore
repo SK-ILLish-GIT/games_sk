@@ -1,0 +1,21 @@
+# Build & dependency outputs
+**/node_modules
+**/dist
+**/build
+**/coverage
+
+# Local OTel SDK mirrors (compiled JS, not source)
+services/*/obs
+
+# Generated Prisma client / migrations
+**/.prisma
+**/prisma/migrations
+
+# Grafana dashboards are JSON schema, not editable code
+observability/grafana/dashboards
+
+# Lock files keep their existing canonical formatting
+**/package-lock.json
+
+# OS noise
+.DS_Store

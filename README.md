@@ -289,6 +289,47 @@ Copy `.env.example` to `.env` and set these:
 
 ---
 
+## 🧹 Code Style
+
+Linting and formatting are managed at the **repo root** so each service /
+package stays independent for builds. One config, one install, one place
+to run it.
+
+```bash
+# one-time install
+npm install
+
+# common workflows
+npm run lint          # ESLint on the entire repo (returns 0 = ok)
+npm run lint:fix      # auto-fix what's auto-fixable (imports, sort, type-imports)
+npm run format        # Prettier write all .{ts,tsx,md,yml,json,css}
+npm run format:check  # Prettier dry-run (CI-friendly)
+npm run check         # lint + format:check together
+```
+
+### Conventions
+
+| Tool | What it enforces |
+| ---- | ---------------- |
+| **ESLint** | bug-finders (`no-debugger`, `no-throw-literal`, `prefer-const`), TypeScript rules (`@typescript-eslint`), React + hooks rules (`eslint-plugin-react`, `eslint-plugin-react-hooks`), unused-import removal (`eslint-plugin-unused-imports`) |
+| **`simple-import-sort`** | Imports are grouped (built-ins → external → `@games-platform/*` → relatives → styles) and sorted within each group; consistent across all packages |
+| **`consistent-type-imports`** | `import type { … }` for type-only references; auto-fix uses inline-type form |
+| **Prettier** | 100-col width, single quotes, semis, trailing-comma `all`, LF line endings |
+| **`.editorconfig`** | 2-space indent, UTF-8, LF endings — agreed on before Prettier even runs |
+
+### Severity policy
+
+- **`error`** — actual bugs / unsafe patterns (e.g. `no-debugger`)
+- **`warn`** — style nits & cosmetic improvements (so existing code doesn't
+  block CI)
+- Most warnings are **auto-fixable** with `npm run lint:fix`
+
+Configs live at the repo root: `eslint.config.mjs`, `.prettierrc.json`,
+`.prettierignore`, `.editorconfig`. Per-package Docker / `tsc` builds are
+unaffected — lint is a developer concern, not a runtime one.
+
+---
+
 ## 🎮 Adding a New Game
 
 The architecture is designed for easy game additions:

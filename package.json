@@ -1,0 +1,26 @@
+{
+  "name": "games-platform-monorepo-tools",
+  "private": true,
+  "description": "Repo-level dev tooling: linting + formatting. Each service/package still installs its own runtime deps separately.",
+  "scripts": {
+    "lint":        "eslint .",
+    "lint:fix":    "eslint . --fix",
+    "format":      "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml,css}\"",
+    "format:check":"prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml,css}\"",
+    "check":       "npm run lint && npm run format:check"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@types/node": "^20.12.7",
+    "eslint": "^9.13.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "eslint-plugin-unused-imports": "^4.1.4",
+    "globals": "^15.11.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^8.12.2"
+  }
+}
