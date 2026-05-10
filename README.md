@@ -18,7 +18,7 @@ authentication, leaderboards, API routing, and full **MELT** observability.
 
 ## Demo
 
-<video src="https://raw.githubusercontent.com/SK-ILLish-GIT/games_sk/main/docs/gamevault-demo.mov" controls playsinline width="100%">
+<video src="https://raw.githubusercontent.com/SK-ILLish-GIT/games_sk/main/docs/gamevault-demo.mp4" controls playsinline width="100%">
   Your browser does not support embedded video.
   <a href="https://drive.google.com/file/d/1EQIpRDiJsY3LrnXnq6uEkGnrXcjVPLee/preview">Watch on Google Drive</a>.
 </video>
