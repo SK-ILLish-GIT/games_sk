@@ -137,6 +137,8 @@ interface GamesMetrics {
   gameDurationSeconds: Histogram;
   gameScore: Histogram;
   hangmanGuessesTotal: Counter;
+  flappyJumpsTotal: Counter;
+  flappyPipesPassedTotal: Counter;
   leaderboardScoreSubmittedTotal: Counter;
   leaderboardLookupsTotal: Counter;
 }
@@ -180,6 +182,14 @@ function build(): GamesMetrics {
     }),
     hangmanGuessesTotal: m.createCounter('hangman.guesses', {
       description: 'Hangman guesses, partitioned by kind (letter|word) and correctness',
+      unit: '1',
+    }),
+    flappyJumpsTotal: m.createCounter('flappy.jumps', {
+      description: 'Flappy Bird input events, partitioned by kind (flap|gravity-flip) and mode',
+      unit: '1',
+    }),
+    flappyPipesPassedTotal: m.createCounter('flappy.pipes_passed', {
+      description: 'Flappy Bird pipes successfully passed during a run, partitioned by mode',
       unit: '1',
     }),
     leaderboardScoreSubmittedTotal: m.createCounter('leaderboard.score_submitted', {

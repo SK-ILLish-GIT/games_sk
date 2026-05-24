@@ -32,6 +32,15 @@ const GAMES = [
     badgeClass: 'badge-accent',
     path: '/hangman',
   },
+  {
+    id: 'flappy-bird',
+    emoji: '🐤',
+    title: 'Flappy Bird',
+    description: 'Funky modes, unlockable skins, particle trails, daily-seed runs, and server-validated scores. Tap to flap.',
+    badge: 'New',
+    badgeClass: 'badge-orange',
+    path: '/flappy-bird',
+  },
 ];
 
 export default function HomePage() {
@@ -93,17 +102,6 @@ export default function HomePage() {
               </SpotlightCard>
             ))}
 
-            {/* Coming soon card */}
-            <SpotlightCard spotlightColor="rgba(255, 255, 255, 0.05)" className="game-card" style={{ opacity: 0.5, cursor: 'default', padding: 0 }}>
-              <div className="game-card-cover">🐍</div>
-              <div className="game-card-body">
-                <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                  <h3 className="game-card-title">Snake</h3>
-                  <span className="badge" style={{ background: 'var(--c-surface2)', color: 'var(--c-text-muted)' }}>Soon</span>
-                </div>
-                <p className="game-card-desc">The classic arcade crawler — coming in the next release.</p>
-              </div>
-            </SpotlightCard>
           </div>
         </div>
       </section>

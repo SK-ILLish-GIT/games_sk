@@ -1,5 +1,14 @@
 import axios, { type AxiosError } from 'axios';
-import type { ApiErrorBody, AuthTokenResponse, RefreshTokenResponse } from '../types';
+import type {
+  ApiErrorBody,
+  AuthTokenResponse,
+  RefreshTokenResponse,
+  FlappyConfig,
+  FlappyStartResponse,
+  FlappyFinishResponse,
+  FlappyProfileResponse,
+  FlappyCosmetics,
+} from '../types';
 
 const api = axios.create({ baseURL: '/api' });
 
@@ -76,6 +85,26 @@ export const hangmanAPI = {
   get: (id: string) => api.get(`/hangman/games/${id}`),
   guessLetter: (id: string, letter: string) => api.post(`/hangman/games/${id}/guess`, { letter }),
   guessWord:   (id: string, word: string)   => api.post(`/hangman/games/${id}/guess`, { word }),
+};
+
+// Flappy Bird
+export interface FlappyFinishPayload {
+  score:      number;
+  distance:   number;
+  jumps:      number;
+  durationMs: number;
+  signature:  string;
+}
+
+export const flappyAPI = {
+  config:      () => api.get<{ data: FlappyConfig }>('/flappy-bird/config'),
+  create:      (mode: string, cosmetics: Partial<FlappyCosmetics>) =>
+    api.post<{ data: FlappyStartResponse }>('/flappy-bird/games', { mode, cosmetics }),
+  finish:      (id: string, payload: FlappyFinishPayload) =>
+    api.post<{ data: FlappyFinishResponse }>(`/flappy-bird/games/${id}/finish`, payload),
+  myProfile:   () => api.get<{ data: FlappyProfileResponse }>('/flappy-bird/profile/me'),
+  saveLoadout: (cosmetics: FlappyCosmetics) =>
+    api.put<{ data: { selected: FlappyCosmetics } }>('/flappy-bird/profile/cosmetics', cosmetics),
 };
 
 // Helper to extract error message safely from Axios errors (replaces `err: any` catch patterns)

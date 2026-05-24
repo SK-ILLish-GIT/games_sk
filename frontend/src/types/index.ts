@@ -1,5 +1,5 @@
-import { UserRole, TicTacToeUIStatus, TicTacToeStatus, GuessStatus, Hint, HangmanStatus, HangmanDifficulty } from '../enums/game.enum';
-export { UserRole, GuessStatus, Hint, HangmanStatus, HangmanDifficulty } from '../enums/game.enum';
+import { UserRole, TicTacToeUIStatus, TicTacToeStatus, GuessStatus, Hint, HangmanStatus, HangmanDifficulty, FlappyMode, FlappyStatus } from '../enums/game.enum';
+export { UserRole, GuessStatus, Hint, HangmanStatus, HangmanDifficulty, FlappyMode, FlappyStatus } from '../enums/game.enum';
 export interface User {
   id: string;
   username: string;
@@ -120,6 +120,94 @@ export interface HangmanGame {
   guesses:        HangmanGuessRecord[];
   lastGuess?:     HangmanGuessRecord;
   attemptsLeft?:  number;
+}
+
+// ── Flappy Bird ──────────────────────────────────────────────────
+export interface FlappyPhysics {
+  gravity:      number;
+  jumpVel:      number;
+  pipeGap:      number;
+  pipeSpeed:    number;
+  pipeInterval: number;
+}
+
+export interface FlappyCosmetics {
+  skin:       string;
+  pipe:       string;
+  background: string;
+  trail:      string;
+  audio:      string;
+}
+
+export interface FlappyModeDefinition {
+  id:              FlappyMode;
+  label:           string;
+  description:     string;
+  physics:         FlappyPhysics;
+  scoreMultiplier: number;
+  durationCapSec:  number | null;
+}
+
+export interface FlappyCosmeticOption {
+  id:    string;
+  label: string;
+  emoji: string;
+}
+
+export interface FlappyUnlockRule {
+  cosmetic: string;
+  category: 'skin' | 'pipe' | 'background' | 'trail' | 'audio';
+  minScore: number;
+  label:    string;
+  emoji:    string;
+}
+
+export interface FlappyConfig {
+  modes:          FlappyModeDefinition[];
+  cosmetics: {
+    skins:       readonly FlappyCosmeticOption[];
+    pipes:       readonly FlappyCosmeticOption[];
+    backgrounds: readonly FlappyCosmeticOption[];
+    trails:      readonly FlappyCosmeticOption[];
+    audio:       readonly FlappyCosmeticOption[];
+  };
+  unlockRules:    FlappyUnlockRule[];
+  defaultLoadout: FlappyCosmetics;
+}
+
+export interface FlappyStartResponse {
+  gameId:         string;
+  mode:           FlappyMode;
+  seed:           number;
+  physics:        FlappyPhysics;
+  cosmetics:      FlappyCosmetics;
+  signature:      string;
+  startedAt:      string;
+  durationCapSec: number | null;
+}
+
+export interface FlappyFinishResponse {
+  gameId:       string;
+  mode:         FlappyMode;
+  score:        number;
+  rawScore:     number;
+  distance:     number;
+  jumps:        number;
+  durationMs:   number;
+  newHighScore: boolean;
+  unlocks:      FlappyUnlockRule[];
+}
+
+export interface FlappyProfileResponse {
+  playerId:           string;
+  playerName:         string;
+  unlockedSkins:      string[];
+  unlockedPipes:      string[];
+  unlockedBackgrounds: string[];
+  unlockedTrails:     string[];
+  unlockedAudio:      string[];
+  selected:           FlappyCosmetics;
+  highScores:         Record<string, number>;
 }
 
 // ── Generic API wrapper ───────────────────────────────────────────

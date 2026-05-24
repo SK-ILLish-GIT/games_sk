@@ -6,12 +6,13 @@ import SpotlightCard from '../components/ui/SpotlightCard';
 import StarBorder from '../components/ui/StarBorder';
 import Loader from '../components/ui/Loader';
 
-const GAMES = ['global', 'tic-tac-toe', 'guess-number', 'hangman'];
+const GAMES = ['global', 'tic-tac-toe', 'guess-number', 'hangman', 'flappy-bird'];
 const GAME_LABELS: Record<string, string> = {
   global: '🌍 Global',
   'tic-tac-toe': '⭕ Tic-Tac-Toe',
   'guess-number': '🎯 Guess the Number',
   hangman: '🪢 Hangman',
+  'flappy-bird': '🐤 Flappy Bird',
 };
 
 export default function LeaderboardPage() {

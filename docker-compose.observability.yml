@@ -220,6 +220,11 @@ services:
       <<: *otel_app_env
       OTEL_SERVICE_NAME: hangman-service
 
+  flappy-bird-service:
+    environment:
+      <<: *otel_app_env
+      OTEL_SERVICE_NAME: flappy-bird-service
+
 volumes:
   prometheus_data:
   loki_data:

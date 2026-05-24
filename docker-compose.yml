@@ -170,6 +170,30 @@ services:
       timeout: 5s
       retries: 5
 
+  flappy-bird-service:
+    build:
+      context: .
+      dockerfile: services/flappy-bird-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 3006
+      MONGO_URL: mongodb://${MONGO_INITDB_ROOT_USERNAME:-gamesadmin}:${MONGO_INITDB_ROOT_PASSWORD:-gamespassword}@mongo:27017/${MONGO_DB:-games}?authSource=admin
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-min-32-chars}
+      LEADERBOARD_SERVICE_URL: http://leaderboard-service:3002
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      leaderboard-service:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3006/health || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
   # ──────────────────────────────────────────────────────────────────
   # Frontend + Gateway
   # ──────────────────────────────────────────────────────────────────
@@ -196,6 +220,8 @@ services:
       guess-number-service:
         condition: service_healthy
       hangman-service:
+        condition: service_healthy
+      flappy-bird-service:
         condition: service_healthy
       frontend:
         condition: service_started
