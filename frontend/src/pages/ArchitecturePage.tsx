@@ -288,6 +288,249 @@ const METRIC_TYPE_COLOR: Record<MetricType, string> = {
   gauge:     '#4edb8c',
 };
 
+/* ── Detailed schemas (Postgres / Mongo / Redis) ───────────────── */
+
+type FieldFlag = 'PK' | 'UQ' | 'IDX' | 'FK' | 'REQ';
+
+const FIELD_FLAG_COLOR: Record<FieldFlag, string> = {
+  PK:  '#f5a26e', // primary key
+  UQ:  '#4edb8c', // unique
+  FK:  '#7c6ef5', // foreign key
+  IDX: '#6ec1f5', // indexed
+  REQ: '#f5617c', // required
+};
+
+const FIELD_FLAG_LABEL: Record<FieldFlag, string> = {
+  PK:  'primary key',
+  UQ:  'unique',
+  FK:  'foreign key',
+  IDX: 'indexed',
+  REQ: 'required',
+};
+
+type SchemaField = {
+  name:   string;
+  type:   string;
+  flags?: FieldFlag[];
+  note?:  string;
+};
+
+type SchemaEntity = {
+  name:     string;          // model / collection / table name
+  physical?: string;         // physical name if it differs (e.g. snake_case table)
+  owner:    string;          // service that owns writes
+  desc:     string;
+  fields:   SchemaField[];
+  indexes?: string[];        // composite / secondary indexes
+};
+
+const POSTGRES_TABLES: SchemaEntity[] = [
+  {
+    name:     'User',
+    physical: 'users',
+    owner:    'auth-service',
+    desc:     'Registered accounts. The plaintext password is never persisted — only a bcrypt hash with cost 12. The auth-service owns writes; every other service treats it as read-only via JWT claims.',
+    fields: [
+      { name: 'id',            type: 'uuid',         flags: ['PK'],  note: 'default uuid()' },
+      { name: 'username',      type: 'text',         flags: ['UQ'] },
+      { name: 'email',         type: 'text',         flags: ['UQ'] },
+      { name: 'password_hash', type: 'text',                          note: 'bcrypt(password, 12)' },
+      { name: 'role',          type: 'text',                          note: 'default "player"' },
+      { name: 'created_at',    type: 'timestamptz',                   note: 'default now()' },
+      { name: 'updated_at',    type: 'timestamptz',                   note: 'Prisma @updatedAt' },
+    ],
+  },
+  {
+    name:     'RefreshToken',
+    physical: 'refresh_tokens',
+    owner:    'auth-service',
+    desc:     'Long-lived refresh tokens stored as SHA-256 hashes — a leaked dump cannot be replayed. Each row is mirrored to a Redis key for sub-ms revocation checks. Cascade-deleted when the parent user is removed.',
+    fields: [
+      { name: 'id',         type: 'uuid',        flags: ['PK'] },
+      { name: 'token_hash', type: 'text',                       note: 'sha256(raw token)' },
+      { name: 'user_id',    type: 'uuid',        flags: ['FK'], note: '→ users.id, ON DELETE CASCADE' },
+      { name: 'expires_at', type: 'timestamptz' },
+      { name: 'revoked',    type: 'bool',                       note: 'default false' },
+      { name: 'created_at', type: 'timestamptz',                note: 'default now()' },
+    ],
+  },
+  {
+    name:     'Score',
+    physical: 'scores',
+    owner:    'leaderboard-service',
+    desc:     'Append-only history of every result the game services submit. This is the source of truth used to rebuild the Redis sorted sets on a cold cache.',
+    fields: [
+      { name: 'id',        type: 'uuid',        flags: ['PK'] },
+      { name: 'user_id',   type: 'uuid',        flags: ['FK'], note: '→ users.id, ON DELETE CASCADE' },
+      { name: 'username',  type: 'text',                       note: 'denormalised — fast leaderboard reads without a join' },
+      { name: 'game_id',   type: 'text',                       note: 'e.g. "hangman", "flappy-bird"' },
+      { name: 'score',     type: 'int' },
+      { name: 'metadata',  type: 'jsonb',                      note: 'per-game extras (mode, difficulty, …) — nullable' },
+      { name: 'played_at', type: 'timestamptz',                note: 'default now()' },
+    ],
+    indexes: [
+      '(game_id, score DESC) — top-N for a single game',
+      '(game_id, user_id)    — personal-best lookup',
+    ],
+  },
+];
+
+const MONGO_COLLECTIONS: SchemaEntity[] = [
+  {
+    name:  'TicTacToeSession',
+    owner: 'tic-tac-toe-service',
+    desc:  'One document per match. The full board and the entire move history are embedded so a session is self-contained — no joins, no separate moves collection.',
+    fields: [
+      { name: '_id',           type: 'ObjectId',                 flags: ['PK'] },
+      { name: 'gameId',        type: 'string',                   flags: ['UQ', 'IDX', 'REQ'] },
+      { name: 'board',         type: '(string|null)[9]',                                       note: 'one cell per square' },
+      { name: 'currentPlayer', type: '"X" | "O"',                                              note: 'default "X"' },
+      { name: 'status',        type: '"active" | "finished"',                                  note: 'default "active"' },
+      { name: 'winner',        type: 'string | null',                                          note: '"X" | "O" | "draw" | null' },
+      { name: 'playerX',       type: 'string?' },
+      { name: 'playerO',       type: 'string?' },
+      { name: 'moves',         type: 'Move[]',                                                 note: 'embedded — { player, position, symbol, timestamp }' },
+      { name: 'createdAt',     type: 'Date' },
+      { name: 'finishedAt',    type: 'Date?' },
+    ],
+  },
+  {
+    name:  'GuessSession',
+    owner: 'guess-number-service',
+    desc:  'Guess-the-Number session. The target number is kept server-side only; the client receives high/low hints, never the secret.',
+    fields: [
+      { name: '_id',         type: 'ObjectId',                  flags: ['PK'] },
+      { name: 'gameId',      type: 'string',                    flags: ['UQ', 'IDX', 'REQ'] },
+      { name: 'secret',      type: 'number',                    flags: ['REQ'],              note: 'never serialised to the client' },
+      { name: 'attempts',    type: 'number',                                                  note: 'default 0' },
+      { name: 'maxAttempts', type: 'number',                                                  note: 'from config.game.maxAttempts' },
+      { name: 'guesses',     type: 'Guess[]',                                                 note: 'embedded — { value, hint, timestamp }' },
+      { name: 'status',      type: '"active" | "won" | "lost"' },
+      { name: 'playerId',    type: 'string?' },
+      { name: 'playerName',  type: 'string?' },
+      { name: 'createdAt',   type: 'Date' },
+      { name: 'finishedAt',  type: 'Date?' },
+    ],
+  },
+  {
+    name:  'HangmanSession',
+    owner: 'hangman-service',
+    desc:  'Hangman session. The chosen word stays on the server until the game ends; the client only ever sees a masked-letter view derived from guessedLetters.',
+    fields: [
+      { name: '_id',             type: 'ObjectId',                          flags: ['PK'] },
+      { name: 'gameId',          type: 'string',                            flags: ['UQ', 'IDX', 'REQ'] },
+      { name: 'word',            type: 'string',                            flags: ['REQ'],              note: 'hidden while status === "active"' },
+      { name: 'difficulty',      type: '"easy" | "medium" | "hard"',                                     note: 'default "medium"' },
+      { name: 'guessedLetters',  type: 'string[]' },
+      { name: 'wrongGuesses',    type: 'number' },
+      { name: 'maxWrong',        type: 'number',                                                         note: 'from config.game.maxWrong' },
+      { name: 'guesses',         type: 'Guess[]',                                                        note: 'embedded — { kind: "letter"|"word", value, correct, timestamp }' },
+      { name: 'status',          type: '"active" | "won" | "lost"' },
+      { name: 'playerId',        type: 'string?' },
+      { name: 'playerName',      type: 'string?' },
+      { name: 'createdAt',       type: 'Date' },
+      { name: 'finishedAt',      type: 'Date?' },
+    ],
+  },
+  {
+    name:  'FlappySession',
+    owner: 'flappy-bird-service',
+    desc:  'One document per Flappy run. The server picks the physics and seed at start, embeds the chosen cosmetics, and signs the run with an HMAC; the signature is verified on /finish before the score reaches the leaderboard.',
+    fields: [
+      { name: '_id',          type: 'ObjectId',                                  flags: ['PK'] },
+      { name: 'gameId',       type: 'string',                                    flags: ['UQ', 'IDX', 'REQ'] },
+      { name: 'mode',         type: 'FlappyMode',                                                              note: 'endless | time-attack | gravity-flip | reverse | chaos | daily-seed' },
+      { name: 'seed',         type: 'number',                                    flags: ['REQ'],               note: 'drives deterministic pipe stream' },
+      { name: 'physics',      type: 'PhysicsSettings',                                                         note: 'embedded — gravity, jumpVel, pipeGap, pipeSpeed, pipeInterval' },
+      { name: 'cosmetics',    type: 'CosmeticLoadout',                                                         note: 'embedded — skin / pipe / background / trail / audio' },
+      { name: 'signature',    type: 'string',                                    flags: ['REQ'],               note: 'HMAC over { gameId, mode, seed, physics, playerId }' },
+      { name: 'status',       type: '"active" | "finished" | "rejected"',                                     note: 'default "active"' },
+      { name: 'score',        type: 'number',                                                                  note: 'final score after server-side capping' },
+      { name: 'rawScore',     type: 'number',                                                                  note: 'value the client submitted, before validation' },
+      { name: 'distance',     type: 'number' },
+      { name: 'jumps',        type: 'number' },
+      { name: 'durationMs',   type: 'number' },
+      { name: 'rejectReason', type: 'string?',                                                                 note: 'set when status === "rejected"' },
+      { name: 'playerId',     type: 'string',                                    flags: ['IDX', 'REQ'] },
+      { name: 'playerName',   type: 'string',                                    flags: ['REQ'] },
+      { name: 'startedAt',    type: 'Date' },
+      { name: 'finishedAt',   type: 'Date?' },
+    ],
+  },
+  {
+    name:  'FlappyProfile',
+    owner: 'flappy-bird-service',
+    desc:  'Per-player meta document. Tracks cosmetic unlocks (granted whenever a single run crosses a score threshold), the currently equipped loadout, and the all-time best score for each mode.',
+    fields: [
+      { name: '_id',                 type: 'ObjectId',           flags: ['PK'] },
+      { name: 'playerId',            type: 'string',             flags: ['UQ', 'IDX', 'REQ'] },
+      { name: 'playerName',          type: 'string',             flags: ['REQ'] },
+      { name: 'unlockedSkins',       type: 'string[]',                                         note: 'cosmetic ids' },
+      { name: 'unlockedPipes',       type: 'string[]' },
+      { name: 'unlockedBackgrounds', type: 'string[]' },
+      { name: 'unlockedTrails',      type: 'string[]' },
+      { name: 'unlockedAudio',       type: 'string[]' },
+      { name: 'selected',            type: 'CosmeticLoadout',                                  note: 'embedded — currently equipped cosmetics' },
+      { name: 'highScores',          type: 'Map<mode, number>',                                note: 'best score per mode' },
+      { name: 'updatedAt',           type: 'Date' },
+    ],
+  },
+];
+
+type RedisKey = {
+  pattern: string;
+  type:    'STRING' | 'ZSET' | 'HASH' | 'SET';
+  value:   string;
+  ttl:     string;
+  owner:   string;
+};
+
+type RedisGroup = {
+  group: string;
+  color: string;
+  desc:  string;
+  keys:  RedisKey[];
+};
+
+const REDIS_GROUPS: RedisGroup[] = [
+  {
+    group: 'Auth — refresh-token mirror',
+    color: '#7c6ef5',
+    desc:  'Postgres is the source of truth; Redis caches every unrevoked refresh token so the auth-service can validate and revoke without a DB round-trip. The key is deleted on rotation and on logout, alongside the DB update.',
+    keys: [
+      { pattern: 'refresh:{sha256}', type: 'STRING', value: 'userId', ttl: '= refresh-token expiry (default 7d)', owner: 'auth-service' },
+    ],
+  },
+  {
+    group: 'Game-state cache (write-through)',
+    color: '#4edb8c',
+    desc:  'Every move is written to both MongoDB and Redis. Reads hit Redis first — if the key is warm, MongoDB is never touched. Serialised JSON keeps deserialisation trivial.',
+    keys: [
+      { pattern: 'game:ttt:{gameId}',     type: 'STRING', value: 'JSON of TicTacToeSession', ttl: '1 h', owner: 'tic-tac-toe-service' },
+      { pattern: 'game:guess:{gameId}',   type: 'STRING', value: 'JSON of GuessSession',     ttl: '1 h', owner: 'guess-number-service' },
+      { pattern: 'game:hangman:{gameId}', type: 'STRING', value: 'JSON of HangmanSession',   ttl: '1 h', owner: 'hangman-service' },
+      { pattern: 'game:flappy:{gameId}',  type: 'STRING', value: 'signed run state',         ttl: '1 h', owner: 'flappy-bird-service' },
+    ],
+  },
+  {
+    group: 'Flappy — daily seed',
+    color: '#ffd166',
+    desc:  'Shared seed for the Daily Seed mode — every player who plays today gets the same pipe sequence, so the daily leaderboard is fair.',
+    keys: [
+      { pattern: 'flappy:daily-seed:{YYYY-MM-DD}', type: 'STRING', value: 'integer seed', ttl: '24 h', owner: 'flappy-bird-service' },
+    ],
+  },
+  {
+    group: 'Leaderboards',
+    color: '#f5a26e',
+    desc:  'Redis Sorted Sets keyed by game id, plus a single "global" set for cross-game ranking. A Lua script does the ZADD atomically and only when the new score beats the member\'s current value. Reads serve from the set; on cold cache the set is rebuilt from the scores table.',
+    keys: [
+      { pattern: 'leaderboard:{gameId}', type: 'ZSET', value: 'member = "userId:username", score = best score for that game',     ttl: 'persistent (cold rebuild → 10×LB_CACHE_TTL)', owner: 'leaderboard-service' },
+      { pattern: 'leaderboard:global',   type: 'ZSET', value: 'same member format, score = best across every game',                ttl: 'persistent (cold rebuild → 10×LB_CACHE_TTL)', owner: 'leaderboard-service' },
+    ],
+  },
+];
+
 const DESIGN_DECISIONS = [
   {
     title: 'Redis as Write-Through Cache',
@@ -476,6 +719,259 @@ function MetricsTable() {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function FlagPill({ flag }: { flag: FieldFlag }) {
+  const color = FIELD_FLAG_COLOR[flag];
+  return (
+    <span title={FIELD_FLAG_LABEL[flag]} style={{
+      display: 'inline-block',
+      padding: '0.05rem 0.4rem',
+      borderRadius: '999px',
+      fontSize: '0.62rem',
+      fontWeight: 800,
+      letterSpacing: '0.04em',
+      background: `${color}1f`,
+      color,
+      border: `1px solid ${color}55`,
+    }}>{flag}</span>
+  );
+}
+
+function SchemaTable({ entity, accent }: { entity: SchemaEntity; accent: string }) {
+  return (
+    <div style={{
+      borderRadius: 'var(--radius-sm)',
+      border: '1px solid var(--c-border)',
+      background: 'var(--c-surface2)',
+      overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: '0.75rem 1rem',
+        background: `${accent}0d`,
+        borderBottom: '1px solid var(--c-border)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.55rem', flexWrap: 'wrap' }}>
+          <code style={{
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            fontWeight: 700,
+            color: accent,
+            fontSize: '0.92rem',
+          }}>{entity.name}</code>
+          {entity.physical && (
+            <span style={{ fontSize: '0.72rem', color: 'var(--c-text-muted)' }}>
+              → <code style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{entity.physical}</code>
+            </span>
+          )}
+          <span style={{
+            marginLeft: 'auto',
+            fontSize: '0.65rem',
+            fontWeight: 700,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            color: 'var(--c-text-muted)',
+          }}>
+            owner · <span style={{ color: 'var(--c-text)' }}>{entity.owner}</span>
+          </span>
+        </div>
+        <p style={{ fontSize: '0.82rem', color: 'var(--c-text-muted)', margin: '0.4rem 0 0' }}>{entity.desc}</p>
+      </div>
+
+      {/* Field table */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          fontSize: '0.8rem',
+          minWidth: 560,
+        }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--c-border)' }}>
+              {[
+                { label: 'Field',  width: '24%' },
+                { label: 'Type',   width: '22%' },
+                { label: 'Flags',  width: '14%' },
+                { label: 'Notes',  width: '40%' },
+              ].map(col => (
+                <th key={col.label} style={{
+                  padding: '0.45rem 0.85rem',
+                  textAlign: 'left',
+                  width: col.width,
+                  fontSize: '0.65rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: 'var(--c-text-muted)',
+                  fontWeight: 700,
+                }}>{col.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {entity.fields.map((f, idx) => (
+              <tr key={f.name} style={{
+                borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.04)',
+                background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
+              }}>
+                <td style={{
+                  padding: '0.4rem 0.85rem',
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  color: 'var(--c-text)',
+                  whiteSpace: 'nowrap',
+                }}>{f.name}</td>
+                <td style={{
+                  padding: '0.4rem 0.85rem',
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  color: 'var(--c-text-muted)',
+                }}>{f.type}</td>
+                <td style={{ padding: '0.4rem 0.85rem' }}>
+                  {f.flags && f.flags.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                      {f.flags.map(fl => <FlagPill key={fl} flag={fl} />)}
+                    </div>
+                  ) : (
+                    <span style={{ color: 'var(--c-text-muted)', opacity: 0.5 }}>—</span>
+                  )}
+                </td>
+                <td style={{
+                  padding: '0.4rem 0.85rem',
+                  color: 'var(--c-text-muted)',
+                  fontSize: '0.78rem',
+                }}>{f.note ?? ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {entity.indexes && entity.indexes.length > 0 && (
+        <div style={{
+          padding: '0.55rem 1rem',
+          borderTop: '1px solid var(--c-border)',
+          background: 'rgba(255,255,255,0.015)',
+        }}>
+          <p style={{
+            fontSize: '0.62rem',
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            color: 'var(--c-text-muted)',
+            fontWeight: 700,
+            margin: '0 0 0.3rem',
+          }}>Indexes</p>
+          <ul style={{ margin: 0, paddingLeft: '1.1rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+            {entity.indexes.map(ix => (
+              <li key={ix} style={{
+                fontSize: '0.76rem',
+                color: 'var(--c-text-muted)',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              }}>{ix}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RedisGroupBlock({ group }: { group: RedisGroup }) {
+  return (
+    <div style={{
+      borderRadius: 'var(--radius-sm)',
+      border: '1px solid var(--c-border)',
+      background: 'var(--c-surface2)',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: '0.75rem 1rem',
+        background: `${group.color}0d`,
+        borderBottom: '1px solid var(--c-border)',
+      }}>
+        <p style={{
+          margin: 0,
+          fontWeight: 700,
+          color: group.color,
+          fontSize: '0.92rem',
+        }}>{group.group}</p>
+        <p style={{ fontSize: '0.82rem', color: 'var(--c-text-muted)', margin: '0.35rem 0 0' }}>{group.desc}</p>
+      </div>
+
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          fontSize: '0.8rem',
+          minWidth: 640,
+        }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--c-border)' }}>
+              {[
+                { label: 'Key pattern', width: '30%' },
+                { label: 'Type',        width: '10%' },
+                { label: 'Value',       width: '32%' },
+                { label: 'TTL',         width: '18%' },
+                { label: 'Owner',       width: '10%' },
+              ].map(col => (
+                <th key={col.label} style={{
+                  padding: '0.45rem 0.85rem',
+                  textAlign: 'left',
+                  width: col.width,
+                  fontSize: '0.65rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: 'var(--c-text-muted)',
+                  fontWeight: 700,
+                }}>{col.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {group.keys.map((k, idx) => (
+              <tr key={k.pattern} style={{
+                borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.04)',
+                background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
+              }}>
+                <td style={{
+                  padding: '0.4rem 0.85rem',
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  color: 'var(--c-text)',
+                  whiteSpace: 'nowrap',
+                }}>{k.pattern}</td>
+                <td style={{ padding: '0.4rem 0.85rem' }}>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '0.1rem 0.45rem',
+                    borderRadius: '999px',
+                    fontSize: '0.65rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    background: `${group.color}1f`,
+                    color: group.color,
+                    border: `1px solid ${group.color}55`,
+                  }}>{k.type}</span>
+                </td>
+                <td style={{
+                  padding: '0.4rem 0.85rem',
+                  color: 'var(--c-text-muted)',
+                  fontSize: '0.78rem',
+                }}>{k.value}</td>
+                <td style={{
+                  padding: '0.4rem 0.85rem',
+                  color: 'var(--c-text-muted)',
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  fontSize: '0.76rem',
+                }}>{k.ttl}</td>
+                <td style={{
+                  padding: '0.4rem 0.85rem',
+                  color: 'var(--c-text-muted)',
+                  fontSize: '0.76rem',
+                }}>{k.owner}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -706,51 +1202,100 @@ export default function ArchitecturePage() {
           </div>
         </div>
 
-        {/* ── Data Flow ── */}
+        {/* ── Data Model ── */}
         <div style={{ marginBottom: '3rem' }}>
           <SectionLabel>Data Model</SectionLabel>
-          <h2 style={{ marginBottom: '1.25rem' }}>What each database stores</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+          <h2 style={{ marginBottom: '0.6rem' }}>What each database stores</h2>
+          <p style={{ maxWidth: 760, marginBottom: '1.25rem', fontSize: '0.9rem' }}>
+            Each store has a focused role. <strong style={{ color: '#4edb8c' }}>PostgreSQL</strong> holds
+            identity and the immutable score history (shared by <code style={{ background: 'var(--c-surface2)', padding: '0.05rem 0.35rem', borderRadius: '4px', fontSize: '0.8rem' }}>auth-service</code> and
+            <code style={{ background: 'var(--c-surface2)', padding: '0.05rem 0.35rem', margin: '0 0.2rem', borderRadius: '4px', fontSize: '0.8rem' }}>leaderboard-service</code>).
+            <strong style={{ color: '#7c6ef5' }}> MongoDB</strong> holds one document per active game session — each game service writes to its own collection.
+            <strong style={{ color: '#f5a26e' }}> Redis</strong> is the hot path: a write-through cache for game state, a mirror of unrevoked refresh tokens,
+            and the Sorted Sets that back the leaderboards. Postgres and Mongo are the sources of truth; Redis can always be rebuilt from them.
+          </p>
 
-            <div className="card" style={{ borderColor: 'rgba(78,219,140,0.3)' }}>
-              <p style={{ fontWeight: 700, color: '#4edb8c', marginBottom: '0.75rem' }}>🐘 PostgreSQL</p>
-              <ul style={{ paddingLeft: '1.1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                {[
-                  'User — id, username, email, passwordHash, role',
-                  'RefreshToken — tokenHash, userId, expiresAt, revoked',
-                  'Score — userId, username, gameId, score, metadata',
-                ].map(item => <li key={item} style={{ fontSize: '0.85rem', color: 'var(--c-text-muted)' }}>{item}</li>)}
-              </ul>
-            </div>
+          {/* Flag legend */}
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.5rem',
+            alignItems: 'center',
+            marginBottom: '1.25rem',
+            fontSize: '0.72rem',
+            color: 'var(--c-text-muted)',
+          }}>
+            <span style={{ textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>Field flags:</span>
+            {(Object.keys(FIELD_FLAG_COLOR) as FieldFlag[]).map(fl => (
+              <span key={fl} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                <FlagPill flag={fl} />
+                <span>{FIELD_FLAG_LABEL[fl]}</span>
+              </span>
+            ))}
+          </div>
 
-            <div className="card" style={{ borderColor: 'rgba(124,110,245,0.3)' }}>
-              <p style={{ fontWeight: 700, color: '#7c6ef5', marginBottom: '0.75rem' }}>🍃 MongoDB</p>
-              <ul style={{ paddingLeft: '1.1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                {[
-                  'TicTacToeSession — gameId, board[], currentPlayer, status, winner, moves[]',
-                  'GuessSession — gameId, secret, attempts, maxAttempts, guesses[], status',
-                  'HangmanSession — gameId, word, difficulty, guessedLetters[], wrongGuesses, guesses[], status',
-                  'FlappySession — gameId, mode, seed, physics, cosmetics, signature, status (active|finished|rejected), score, rawScore, distance, jumps, durationMs, rejectReason',
-                  'FlappyProfile — playerId, unlockedSkins/pipes/backgrounds/trails/audio[], selected loadout, highScores per mode',
-                ].map(item => <li key={item} style={{ fontSize: '0.85rem', color: 'var(--c-text-muted)' }}>{item}</li>)}
-              </ul>
-            </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
-            <div className="card" style={{ borderColor: 'rgba(245,162,110,0.3)' }}>
-              <p style={{ fontWeight: 700, color: '#f5a26e', marginBottom: '0.75rem' }}>⚡ Redis</p>
-              <ul style={{ paddingLeft: '1.1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                {[
-                  'refresh:{hash} → userId (TTL = token expiry)',
-                  'game:ttt:{id} → serialized game state (TTL 1h)',
-                  'game:guess:{id} → serialized game state (TTL 1h)',
-                  'game:hangman:{id} → serialized game state (TTL 1h)',
-                  'game:flappy:{id} → flappy run state, signed (TTL 1h)',
-                  'flappy:daily-seed:{YYYY-MM-DD} → shared seed for Daily Seed mode (TTL 24h)',
-                  'leaderboard:{gameId} → Sorted Set, score→userId:username',
-                  'leaderboard:global → Sorted Set, cross-game ranking',
-                ].map(item => <li key={item} style={{ fontSize: '0.85rem', color: 'var(--c-text-muted)', fontFamily: 'monospace' }}>{item}</li>)}
-              </ul>
-            </div>
+            {/* PostgreSQL */}
+            <SpotlightCard className="card" style={{ borderColor: 'rgba(78,219,140,0.3)' }} spotlightColor="rgba(78, 219, 140, 0.1)">
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
+                <p style={{ fontWeight: 700, color: '#4edb8c', fontSize: '1.05rem', margin: 0 }}>🐘 PostgreSQL</p>
+                <span style={{ fontSize: '0.72rem', color: 'var(--c-text-muted)', letterSpacing: '0.04em' }}>
+                  Prisma · 3 tables · shared by auth-service &amp; leaderboard-service
+                </span>
+              </div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--c-text-muted)', marginBottom: '1rem' }}>
+                Relational store for everything that needs ACID guarantees: user accounts, refresh-token records, and the full score history.
+                Prisma generates the type-safe client and runs <code style={{ background: 'var(--c-surface2)', padding: '0.05rem 0.35rem', borderRadius: '4px', fontSize: '0.78rem' }}>migrate deploy</code> from
+                the <code style={{ background: 'var(--c-surface2)', padding: '0.05rem 0.35rem', borderRadius: '4px', fontSize: '0.78rem' }}>auth-service</code> on startup.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                {POSTGRES_TABLES.map(t => (
+                  <SchemaTable key={t.name} entity={t} accent="#4edb8c" />
+                ))}
+              </div>
+            </SpotlightCard>
+
+            {/* MongoDB */}
+            <SpotlightCard className="card" style={{ borderColor: 'rgba(124,110,245,0.3)' }} spotlightColor="rgba(124, 110, 245, 0.1)">
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
+                <p style={{ fontWeight: 700, color: '#7c6ef5', fontSize: '1.05rem', margin: 0 }}>🍃 MongoDB</p>
+                <span style={{ fontSize: '0.72rem', color: 'var(--c-text-muted)', letterSpacing: '0.04em' }}>
+                  Mongoose · 6 collections · one per game service (plus the Flappy player profile)
+                </span>
+              </div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--c-text-muted)', marginBottom: '1rem' }}>
+                Game sessions are stored as self-contained documents — move history, secrets, cosmetics, and signatures are all embedded so a single
+                <code style={{ background: 'var(--c-surface2)', padding: '0.05rem 0.35rem', margin: '0 0.25rem', borderRadius: '4px', fontSize: '0.78rem' }}>findOne</code>
+                returns everything the service needs. Each collection is owned by exactly one game service, so the document shape can evolve independently.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                {MONGO_COLLECTIONS.map(c => (
+                  <SchemaTable key={c.name} entity={c} accent="#7c6ef5" />
+                ))}
+              </div>
+            </SpotlightCard>
+
+            {/* Redis */}
+            <SpotlightCard className="card" style={{ borderColor: 'rgba(245,162,110,0.3)' }} spotlightColor="rgba(245, 162, 110, 0.1)">
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
+                <p style={{ fontWeight: 700, color: '#f5a26e', fontSize: '1.05rem', margin: 0 }}>⚡ Redis</p>
+                <span style={{ fontSize: '0.72rem', color: 'var(--c-text-muted)', letterSpacing: '0.04em' }}>
+                  ioredis · 4 key groups · cache + leaderboard + revocation
+                </span>
+              </div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--c-text-muted)', marginBottom: '1rem' }}>
+                Redis is treated as derived state — every key can be rebuilt from Postgres or Mongo. Game state is written through alongside Mongo,
+                the auth-service mirrors unrevoked refresh tokens for instant revocation checks, and the leaderboard service keeps two Sorted Sets per game (per-game and global)
+                updated via an atomic max-score Lua script.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                {REDIS_GROUPS.map(g => (
+                  <RedisGroupBlock key={g.group} group={g} />
+                ))}
+              </div>
+            </SpotlightCard>
+
           </div>
         </div>
 
