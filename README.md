@@ -34,6 +34,10 @@ authentication, leaderboards, API routing, and full **MELT** observability.
 - 🎲 **Tic-Tac-Toe** — pass-and-play, state in MongoDB + Redis
 - 🔢 **Guess the Number** — classic 1–100 guess game with score & hints
 - 🪢 **Hangman** — easy / medium / hard difficulty, masked-word view
+- 🐤 **Flappy Bird** — six modes (Endless, Time Attack, Gravity Flip, Reverse,
+  Chaos, Daily Seed), unlockable cosmetic loadouts (skins / pipes / backgrounds
+  / trails / audio), HMAC-signed runs with server-side validation
+- 👤 **Player Profile** — edit username/email, theme toggle, secure logout
 - 🌐 **Nginx API Gateway** — single entry point, routes to all services
 - ⚡ **Vite + React SPA** — fast dark-mode UI with animated pages
 - 🔭 **Full Observability** — OpenTelemetry SDK in every service, Grafana
@@ -53,6 +57,7 @@ flowchart LR
   Gateway -- "/api/tic-tac-toe"   --> TTT["⭕ tic-tac-toe-service<br/>:3003"]
   Gateway -- "/api/guess-number"  --> GN["🎯 guess-number-service<br/>:3004"]
   Gateway -- "/api/hangman"       --> HM["🪢 hangman-service<br/>:3005"]
+  Gateway -- "/api/flappy-bird"   --> FB["🐤 flappy-bird-service<br/>:3006"]
   Gateway -- "/"                  --> Frontend["⚛️ frontend<br/>:80"]
 
   Auth --> Postgres[("🐘 PostgreSQL<br/>users, scores")]
@@ -65,10 +70,13 @@ flowchart LR
   GN   --> Redis
   HM   --> Mongo
   HM   --> Redis
+  FB   --> Mongo
+  FB   --> Redis
 
   TTT  -. "score POST" .-> LB
   GN   -. "score POST" .-> LB
   HM   -. "score POST" .-> LB
+  FB   -. "score POST" .-> LB
 ```
 
 ### Observability sidecar (opt-in overlay)
@@ -82,6 +90,7 @@ flowchart LR
     AppTTT["⭕ tic-tac-toe"]
     AppGN["🎯 guess-number"]
     AppHM["🪢 hangman"]
+    AppFB["🐤 flappy-bird"]
   end
 
   Promtail["📜 Promtail"]
@@ -112,6 +121,7 @@ flowchart LR
 | **tic-tac-toe-service** | 3003 (internal) | Express + Mongoose + Redis | Game logic, state persistence |
 | **guess-number-service** | 3004 (internal) | Express + Mongoose + Redis | Guess game, scoring |
 | **hangman-service** | 3005 (internal) | Express + Mongoose + Redis | Hangman with difficulty tiers |
+| **flappy-bird-service** | 3006 (internal) | Express + Mongoose + Redis | Six modes, cosmetic unlocks, HMAC-signed run validation |
 | **postgres** | 5432 (internal) | PostgreSQL 16 | Auth users, refresh tokens, scores |
 | **mongo** | 27017 (internal) | MongoDB 7 | Game sessions, move/guess history |
 | **redis** | 6379 (internal) | Redis 7 | Cache, leaderboards, refresh-token lookup |
@@ -191,10 +201,16 @@ The provisioned dashboards (folder **Games Platform**):
 
 - **Overview** — RED metrics by service, container CPU/memory, error log feed
 - **Auth Service** — registrations, logins by result, active sessions, per-route p95
-- **Games (combined)** — start/finish, win-rate, score-histo, leaderboard reads
+- **Games (combined)** — start/finish per game (incl. Flappy modes), win-rate, score-histo, leaderboard reads
 - **Hangman** — letter-vs-word guess split, accuracy by difficulty, score histogram
 - **Guess Number** — game outcomes, score & duration distribution
 - **Tic-Tac-Toe** — outcomes (won / draw), score & duration distribution
+
+> Flappy Bird metrics (`flappy_jumps_total`, `flappy_pipes_passed_total`,
+> per-mode `games_score_*` / `games_duration_seconds_*`) are emitted to
+> Prometheus via the same shared instruments and surface in the combined
+> Games dashboard's per-game panels — no Flappy-specific dashboard is
+> provisioned yet.
 
 See [OBSERVABILITY.md](OBSERVABILITY.md) for the full guide (how MELT
 flows through the stack, custom-metric reference, trace ↔ logs correlation,
@@ -246,10 +262,15 @@ Games_sk/
 ├── frontend/                           # React 18 + Vite SPA
 │   ├── src/
 │   │   ├── api/                        # Axios client + 401 silent-refresh
-│   │   ├── components/                 # Navbar, animated UI primitives
+│   │   ├── components/                 # Navbar, animated UI primitives,
+│   │   │                               #   flappy/ (ModePicker, GameOverModal,
+│   │   │                               #   CustomizationPanel)
 │   │   ├── context/                    # AuthContext, ThemeContext
-│   │   └── pages/                      # Home, Auth, TicTacToe, GuessNumber,
-│   │                                   #   Hangman, Leaderboard, Architecture
+│   │   ├── games/flappy/               # Client-side flappy engine, RNG,
+│   │   │                               #   skin/pipe/background/trail/audio defs
+│   │   └── pages/                      # Home, Auth, Profile, TicTacToe,
+│   │                                   #   GuessNumber, Hangman, FlappyBird,
+│   │                                   #   Leaderboard, Architecture
 │   └── Dockerfile
 │
 ├── gateway/                            # Nginx reverse proxy
@@ -263,7 +284,9 @@ Games_sk/
 │   ├── leaderboard-service/            # Scores + Redis Sorted Sets
 │   ├── tic-tac-toe-service/            # TTT engine + MongoDB + Redis
 │   ├── guess-number-service/           # Guess engine + MongoDB + Redis
-│   └── hangman-service/                # Hangman engine + MongoDB + Redis
+│   ├── hangman-service/                # Hangman engine + MongoDB + Redis
+│   └── flappy-bird-service/            # Flappy modes + cosmetic unlocks +
+│                                       #   HMAC-signed run validation
 │
 ├── packages/
 │   ├── shared-types/                   # Shared TypeScript types between FE & BE
@@ -293,6 +316,10 @@ Copy `.env.example` to `.env` and set these:
 | `MONGO_INITDB_ROOT_USERNAME` | `gamesadmin` | MongoDB root username |
 | `MONGO_INITDB_ROOT_PASSWORD` | `gamespassword` | MongoDB root password |
 | `GATEWAY_PORT` | `3000` | Host port for the gateway |
+| `GAME_STATE_TTL` | `3600` | Redis TTL (s) for cached game state (all game services) |
+| `HTTP_TIMEOUT_MS` | `3000` | Inter-service HTTP timeout (e.g. score POST) |
+| `RUN_MAX_DURATION_SEC` | `900` | Flappy hard cap — runs longer than this are rejected as forgeries |
+| `DAILY_SEED_TTL` | `86400` | Flappy daily-seed mode: shared seed lifetime in Redis |
 | `DEPLOY_ENV` | `development` | Tags every span/metric with `deployment.environment` |
 | `OTEL_LOG_LEVEL` | `warn` | OTel SDK + collector log verbosity (`debug` for diagnosis) |
 | `GRAFANA_USER` | `admin` | Grafana login (overlay only) |

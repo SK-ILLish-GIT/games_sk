@@ -40,6 +40,7 @@ flowchart LR
     AppTTT["⭕ tic-tac-toe"]
     AppGN["🎯 guess-number"]
     AppHM["🪢 hangman"]
+    AppFB["🐤 flappy-bird"]
   end
 
   Promtail["📜 Promtail<br/>(tails Docker stdout)"]
@@ -79,6 +80,10 @@ curl -s -X POST http://localhost:3000/api/auth/register \
 curl -s -X POST http://localhost:3000/api/hangman/games \
   -H 'content-type: application/json' \
   -d '{"difficulty":"medium"}'
+
+curl -s -X POST http://localhost:3000/api/flappy-bird/games \
+  -H 'content-type: application/json' \
+  -d '{"mode":"endless"}'
 ```
 
 ## Access URLs & dashboards
@@ -209,11 +214,13 @@ recorded by individual services. After Prometheus name-mangling
 | `auth_registrations_total` | counter | `result` (`success` \| `conflict`) | auth-service |
 | `auth_logins_total` | counter | `result` (`success` \| `invalid_credentials`) | auth-service |
 | `auth_active_sessions` | observable gauge | – | auth-service (queries refresh-token table every 15 s) |
-| `games_started_total` | counter | `game`, `difficulty` | hangman, guess-number, tic-tac-toe |
-| `games_finished_total` | counter | `game`, `outcome` (`won` \| `lost` \| `draw`), `difficulty` | hangman, guess-number, tic-tac-toe |
-| `games_score_{bucket,count,sum}` | histogram | `game`, `outcome`, `difficulty` | hangman, guess-number, tic-tac-toe |
-| `games_duration_seconds_{bucket,count,sum}` | histogram (s) | `game`, `outcome` | hangman, guess-number, tic-tac-toe |
+| `games_started_total` | counter | `game`, `difficulty` (hangman) \| `mode` (flappy) | hangman, guess-number, tic-tac-toe, flappy-bird |
+| `games_finished_total` | counter | `game`, `outcome` (`won` \| `lost` \| `draw` \| `finished` \| `rejected`), `difficulty`, `mode` | hangman, guess-number, tic-tac-toe, flappy-bird |
+| `games_score_{bucket,count,sum}` | histogram | `game`, `outcome`, `difficulty`, `mode` | hangman, guess-number, tic-tac-toe, flappy-bird |
+| `games_duration_seconds_{bucket,count,sum}` | histogram (s) | `game`, `outcome`, `mode` | hangman, guess-number, tic-tac-toe, flappy-bird |
 | `hangman_guesses_total` | counter | `kind` (`letter` \| `word`), `correct` (`true` \| `false`), `difficulty` | hangman |
+| `flappy_jumps_total` | counter | `kind` (`flap` \| `gravity-flip`), `mode` | flappy-bird |
+| `flappy_pipes_passed_total` | counter | `mode` | flappy-bird |
 | `leaderboard_score_submitted_total` | counter | `game` | leaderboard |
 | `leaderboard_lookups_total` | counter | `scope` (`per_game` \| `global` \| `me`), `game` | leaderboard |
 

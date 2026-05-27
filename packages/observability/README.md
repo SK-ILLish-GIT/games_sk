@@ -10,10 +10,13 @@ every Node service in the games platform.
   Idempotent; honors all standard `OTEL_*` env vars.
 - `gamesMetrics` — typed namespace of counters / histograms / observable
   gauges shared across services. Single source of truth for metric names
-  and label keys.
+  and label keys. Includes shared instruments
+  (`gameStartedTotal`, `gameFinishedTotal`, `gameScore`,
+  `gameDurationSeconds`) plus per-game ones used only where they make sense
+  (`hangmanGuessesTotal`; `flappyJumpsTotal`, `flappyPipesPassedTotal`).
 - `createLogger(serviceName)` — JSON logger with automatic
-  `trace_id` / `span_id` injection from the active span. All five services
-  use this; do not roll your own.
+  `trace_id` / `span_id` injection from the active span. Every Node service
+  uses this; do not roll your own.
 - `withTrace(fields)` — low-level helper underlying `createLogger`. Useful
   if you have an existing logger you'd rather keep.
 - Re-exports of `tracer`, `metrics`, `context`, `logsApi` from
@@ -23,7 +26,7 @@ every Node service in the games platform.
 
 The package is consumed via a local `file:` dependency so each service
 image bundles it without an npm registry. The pattern is mirrored across
-all five services:
+every service:
 
 1. Add to the service's `package.json`:
 

@@ -19,6 +19,7 @@ const SYSTEM_TOPOLOGY_DIAGRAM = `flowchart LR
   Gateway -- "/api/tic-tac-toe"   --> TTT["⭕ tic-tac-toe-service<br/>:3003"]
   Gateway -- "/api/guess-number"  --> GN["🎯 guess-number-service<br/>:3004"]
   Gateway -- "/api/hangman"       --> HM["🪢 hangman-service<br/>:3005"]
+  Gateway -- "/api/flappy-bird"   --> FB["🐤 flappy-bird-service<br/>:3006"]
   Gateway -- "/"                  --> Frontend["⚛️ frontend<br/>:80"]
 
   Auth --> Postgres[("🐘 PostgreSQL")]
@@ -31,16 +32,19 @@ const SYSTEM_TOPOLOGY_DIAGRAM = `flowchart LR
   GN   --> Redis
   HM   --> Mongo
   HM   --> Redis
+  FB   --> Mongo
+  FB   --> Redis
 
   TTT  -.score POST.-> LB
   GN   -.score POST.-> LB
   HM   -.score POST.-> LB
+  FB   -.score POST.-> LB
 
   classDef edge fill:#0e0e14,stroke:#7c6ef5,color:#e6e6f0;
   classDef svc  fill:#1c1c24,stroke:#7c6ef5,color:#e6e6f0;
   classDef data fill:#26262f,stroke:#4edb8c,color:#e6e6f0;
   class Browser,Frontend,Gateway edge;
-  class Auth,LB,TTT,GN,HM svc;
+  class Auth,LB,TTT,GN,HM,FB svc;
   class Postgres,Mongo,Redis data;
   style Gateway_Layer fill:transparent,stroke:transparent;
 `;
@@ -53,6 +57,7 @@ const OBSERVABILITY_PIPELINE_DIAGRAM = `flowchart LR
     AppTTT["⭕ tic-tac-toe-service"]
     AppGN["🎯 guess-number-service"]
     AppHM["🪢 hangman-service"]
+    AppFB["🐤 flappy-bird-service"]
   end
 
   Promtail["📜 Promtail<br/>(tails Docker stdout)"]
@@ -76,7 +81,7 @@ const OBSERVABILITY_PIPELINE_DIAGRAM = `flowchart LR
   classDef ingest fill:#26262f,stroke:#f5a26e,color:#e6e6f0;
   classDef store fill:#26262f,stroke:#4edb8c,color:#e6e6f0;
   classDef ui fill:#1c1c24,stroke:#f5617c,color:#e6e6f0;
-  class AppAuth,AppLB,AppTTT,AppGN,AppHM app;
+  class AppAuth,AppLB,AppTTT,AppGN,AppHM,AppFB app;
   class Coll,Promtail,Docker ingest;
   class Tempo,Prom,Loki store;
   class Grafana ui;
@@ -210,6 +215,15 @@ const SERVICES = [
     desc: 'Hangman with easy / medium / hard difficulty tiers. Returns a masked-word view; reveals the word only after the game finishes.',
     endpoints: ['POST /games', 'GET /games/:id', 'POST /games/:id/guess'],
   },
+  {
+    name: 'flappy-bird-service',
+    port: '3006',
+    db: 'MongoDB + Redis',
+    color: '#ffd166',
+    icon: '🐤',
+    desc: 'Six modes (Endless, Time Attack, Gravity Flip, Reverse, Chaos, Daily Seed), unlockable cosmetic loadouts, and HMAC-signed runs validated server-side against per-mode score-rate ceilings before reaching the leaderboard.',
+    endpoints: ['GET /config', 'POST /games', 'GET /games/:id', 'POST /games/:id/finish', 'GET /profile/me', 'PUT /profile/cosmetics'],
+  },
 ];
 
 const OBSERVABILITY_STACK = [
@@ -257,11 +271,13 @@ const CUSTOM_METRICS: {
   { name: 'auth_registrations_total',           type: 'counter',   labels: 'result',                             source: 'auth' },
   { name: 'auth_logins_total',                  type: 'counter',   labels: 'result',                             source: 'auth' },
   { name: 'auth_active_sessions',               type: 'gauge',     labels: '—',                                  source: 'auth' },
-  { name: 'games_started_total',                type: 'counter',   labels: 'game, difficulty',                   source: 'all games' },
-  { name: 'games_finished_total',               type: 'counter',   labels: 'game, outcome, difficulty',          source: 'all games' },
-  { name: 'games_score_*',                      type: 'histogram', labels: 'game, outcome, difficulty',          source: 'all games' },
-  { name: 'games_duration_seconds_*',           type: 'histogram', unit: 's', labels: 'game, outcome',           source: 'all games' },
+  { name: 'games_started_total',                type: 'counter',   labels: 'game, difficulty, mode',             source: 'all games' },
+  { name: 'games_finished_total',               type: 'counter',   labels: 'game, outcome, difficulty, mode',    source: 'all games' },
+  { name: 'games_score_*',                      type: 'histogram', labels: 'game, outcome, difficulty, mode',    source: 'all games' },
+  { name: 'games_duration_seconds_*',           type: 'histogram', unit: 's', labels: 'game, outcome, mode',     source: 'all games' },
   { name: 'hangman_guesses_total',              type: 'counter',   labels: 'kind, correct, difficulty',          source: 'hangman' },
+  { name: 'flappy_jumps_total',                 type: 'counter',   labels: 'kind, mode',                         source: 'flappy-bird' },
+  { name: 'flappy_pipes_passed_total',          type: 'counter',   labels: 'mode',                               source: 'flappy-bird' },
   { name: 'leaderboard_score_submitted_total',  type: 'counter',   labels: 'game',                               source: 'leaderboard' },
   { name: 'leaderboard_lookups_total',          type: 'counter',   labels: 'scope, game',                        source: 'leaderboard' },
 ];
@@ -311,12 +327,17 @@ const DESIGN_DECISIONS = [
   {
     title: 'Standardised Logger with Trace Correlation',
     icon: '📝',
-    body: `All five services use createLogger(serviceName) from the shared observability package. Every log line is JSON, includes service / level / timestamp, and carries trace_id and span_id when emitted inside an active span. Loki's derived fields turn the trace_id into a clickable link to Tempo.`,
+    body: `Every Node service uses createLogger(serviceName) from the shared observability package. Every log line is JSON, includes service / level / timestamp, and carries trace_id and span_id when emitted inside an active span. Loki's derived fields turn the trace_id into a clickable link to Tempo.`,
   },
   {
     title: 'Lazy-Resolved Custom Metrics',
     icon: '⏱️',
     body: `gamesMetrics is a Proxy that resolves each instrument against the current global meter on every access. This avoids a real-world OTel gotcha where instruments imported before initTelemetry() bind to the no-op default provider and silently drop every record.`,
+  },
+  {
+    title: 'Server-Authoritative Flappy Runs',
+    icon: '🐤',
+    body: `Flappy Bird picks its physics, seed, and a per-mode score-rate ceiling on the server, signs the run start with an HMAC, and validates the submitted score / distance / jumps / duration on /finish. The client runs the sim at 60 fps for snappy feedback, but the leaderboard only sees scores that survive the server-side validator — runs that exceed the ceiling or whose distance is inconsistent with elapsed time × pipe speed are persisted as "rejected" for analytics and dropped.`,
   },
 ];
 
@@ -709,6 +730,8 @@ export default function ArchitecturePage() {
                   'TicTacToeSession — gameId, board[], currentPlayer, status, winner, moves[]',
                   'GuessSession — gameId, secret, attempts, maxAttempts, guesses[], status',
                   'HangmanSession — gameId, word, difficulty, guessedLetters[], wrongGuesses, guesses[], status',
+                  'FlappySession — gameId, mode, seed, physics, cosmetics, signature, status (active|finished|rejected), score, rawScore, distance, jumps, durationMs, rejectReason',
+                  'FlappyProfile — playerId, unlockedSkins/pipes/backgrounds/trails/audio[], selected loadout, highScores per mode',
                 ].map(item => <li key={item} style={{ fontSize: '0.85rem', color: 'var(--c-text-muted)' }}>{item}</li>)}
               </ul>
             </div>
@@ -721,6 +744,8 @@ export default function ArchitecturePage() {
                   'game:ttt:{id} → serialized game state (TTL 1h)',
                   'game:guess:{id} → serialized game state (TTL 1h)',
                   'game:hangman:{id} → serialized game state (TTL 1h)',
+                  'game:flappy:{id} → flappy run state, signed (TTL 1h)',
+                  'flappy:daily-seed:{YYYY-MM-DD} → shared seed for Daily Seed mode (TTL 24h)',
                   'leaderboard:{gameId} → Sorted Set, score→userId:username',
                   'leaderboard:global → Sorted Set, cross-game ranking',
                 ].map(item => <li key={item} style={{ fontSize: '0.85rem', color: 'var(--c-text-muted)', fontFamily: 'monospace' }}>{item}</li>)}

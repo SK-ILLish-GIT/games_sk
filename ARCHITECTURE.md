@@ -15,22 +15,26 @@ flowchart LR
   Gateway -- "/api/tic-tac-toe"   --> TTT["⭕ tic-tac-toe-service<br/>:3003"]
   Gateway -- "/api/guess-number"  --> GN["🎯 guess-number-service<br/>:3004"]
   Gateway -- "/api/hangman"       --> HM["🪢 hangman-service<br/>:3005"]
+  Gateway -- "/api/flappy-bird"   --> FB["🐤 flappy-bird-service<br/>:3006"]
   Gateway -- "/"                  --> Frontend["⚛️ frontend<br/>:80"]
 
   Auth --> Postgres[("🐘 PostgreSQL<br/>users, refresh tokens, scores")]
   Auth --> Redis[("⚡ Redis<br/>cache, leaderboards")]
   LB   --> Postgres
   LB   --> Redis
-  TTT  --> Mongo[("🍃 MongoDB<br/>game sessions, move/guess history")]
+  TTT  --> Mongo[("🍃 MongoDB<br/>game sessions, move/guess history,<br/>flappy runs + player profiles")]
   TTT  --> Redis
   GN   --> Mongo
   GN   --> Redis
   HM   --> Mongo
   HM   --> Redis
+  FB   --> Mongo
+  FB   --> Redis
 
   TTT -. "score POST" .-> LB
   GN  -. "score POST" .-> LB
   HM  -. "score POST" .-> LB
+  FB  -. "score POST" .-> LB
 ```
 
 ### Observability sidecar (additive, opt-in via second compose file)
@@ -44,6 +48,7 @@ flowchart LR
     AppTTT["⭕ tic-tac-toe"]
     AppGN["🎯 guess-number"]
     AppHM["🪢 hangman"]
+    AppFB["🐤 flappy-bird"]
   end
 
   Apps -- "OTLP/gRPC :4317" --> Coll["📡 OTel Collector"]
@@ -71,6 +76,7 @@ flowchart LR
 | **tic-tac-toe-service** | 3003 | Node/Express + Mongoose | Game logic, state via Redis+MongoDB |
 | **guess-number-service** | 3004 | Node/Express + Mongoose | Guess game, scoring, state caching |
 | **hangman-service**  | 3005 | Node/Express + Mongoose  | Hangman, difficulty tiers, masked-word view |
+| **flappy-bird-service** | 3006 | Node/Express + Mongoose  | Six modes, cosmetic unlocks, HMAC-signed run validation |
 | **postgres**         | 5432 | PostgreSQL 16            | Auth users, refresh tokens, scores     |
 | **mongo**            | 27017 | MongoDB 7               | Game sessions, move history            |
 | **redis**            | 6379 | Redis 7                  | Cache, sessions, leaderboard, pub/sub  |
@@ -157,6 +163,46 @@ sequenceDiagram
   TTT-->>Client: 200 OK { state }
 ```
 
+### Flappy Bird run lifecycle (server-authoritative + HMAC-signed)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Client
+  participant FB as flappy-bird-service
+  participant Redis
+  participant Mongo as MongoDB
+  participant LB as leaderboard-service
+
+  Client->>FB: POST /games { mode, cosmetics }
+  FB->>FB: pick canonical physics for mode<br/>derive seed (random or daily)
+  FB->>FB: HMAC(gameId | seed | mode | playerId | startedAt)
+  FB->>Mongo: insert FlappySession (status=active)
+  FB->>Redis: SETEX game:flappy:{id} 3600 …
+  FB-->>Client: { gameId, seed, physics, signature, durationCapSec }
+
+  Note over Client: Client runs the sim at 60 fps using<br/>those exact physics + seed (deterministic)
+
+  Client->>FB: POST /games/{id}/finish { score, distance, jumps, durationMs, signature }
+  FB->>FB: timing-safe verify signature
+  FB->>FB: validateRun() — score/jump/distance rate ceilings
+  alt verdict.ok
+    FB->>Mongo: update session (finished, finalScore = raw × multiplier)
+    FB->>Mongo: upsert FlappyProfile — high score, unlocks
+    FB-)LB: POST /scores (fire-and-forget)
+    FB-->>Client: { score, newHighScore, unlocks[] }
+  else rejected
+    FB->>Mongo: status=rejected, rejectReason=...
+    FB-->>Client: 422 { rawScore, error }
+  end
+```
+
+The client is trusted only for the **inputs** of a run; the server owns
+the physics constants, the HMAC, and a per-mode score-rate ceiling
+(`engine.maxScorePerSec * scoreSlack + 5`). Runs that exceed the ceiling
+or whose distance is inconsistent with elapsed time × pipe speed are
+recorded as `rejected` and never reach the leaderboard.
+
 ## Redis Key Convention
 
 | Key Pattern                    | Type         | TTL  | Purpose                     |
@@ -167,6 +213,8 @@ sequenceDiagram
 | `game:ttt:{gameId}`           | JSON String  | 1h   | Tic-tac-toe state cache     |
 | `game:guess:{gameId}`         | JSON String  | 1h   | Guess-number state cache    |
 | `game:hangman:{gameId}`       | JSON String  | 1h   | Hangman state cache         |
+| `game:flappy:{gameId}`        | JSON String  | 1h   | Flappy run state (mode, seed, signed) |
+| `flappy:daily-seed:{YYYY-MM-DD}` | String    | 24h  | Shared seed for *Daily Seed* mode (same level for everyone that day) |
 
 ## Observability (MELT)
 
@@ -177,7 +225,8 @@ Every service is instrumented with OpenTelemetry via the shared
 
 - **Traces** — auto-instrumented Express, HTTP, ioredis, mongoose, pg, axios
 - **Metrics** — typed domain instruments in `gamesMetrics` (registrations,
-  logins, games_started/finished/score/duration, hangman guess split,
+  logins, games_started/finished/score/duration with a `mode` label for
+  Flappy, hangman guess split, flappy jumps + pipes-passed counters,
   leaderboard submissions/lookups, active sessions gauge) plus auto HTTP
   metrics
 - **Logs** — `createLogger(serviceName)` emits JSON with `trace_id` /
