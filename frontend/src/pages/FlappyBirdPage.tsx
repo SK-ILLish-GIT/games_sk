@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { flappyAPI, getApiErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -429,21 +430,6 @@ export default function FlappyBirdPage() {
     [bestByMode, selectedMode],
   );
 
-  const overallBest = useMemo(
-    () => Object.values(bestByMode).reduce((m, v) => (v > m ? v : m), 0),
-    [bestByMode],
-  );
-
-  // First locked cosmetic the player can still earn — drives the "Next Unlock" card.
-  const nextUnlock = useMemo(() => {
-    if (!config || !unlocks) return null;
-    const sorted = [...config.unlockRules].sort((a, b) => a.minScore - b.minScore);
-    return sorted.find(r => {
-      const cat = r.category as keyof typeof unlocks;
-      return !unlocks[cat].includes(r.cosmetic);
-    }) ?? null;
-  }, [config, unlocks]);
-
   // ── Loading / error states ────────────────────────────────────────
   if (!config || !cosmetics || !unlocks) {
     return (
@@ -481,7 +467,7 @@ export default function FlappyBirdPage() {
           gap:                 '1.25rem',
           alignItems:          'start',
         }}>
-          <aside style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <aside style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 640 }}>
             <ModePicker
               modes={config.modes}
               selected={selectedMode}
@@ -495,43 +481,29 @@ export default function FlappyBirdPage() {
               bestScore={bestForCurrentMode}
               onChange={handleCosmeticsChange}
             />
-            {nextUnlock ? (
-              <div className="card" style={{ padding: '0.85rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                  <span style={{ fontSize: '1.6rem', lineHeight: 1 }}>{nextUnlock.emoji}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--c-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Next unlock
-                    </div>
-                    <div style={{ fontSize: '0.88rem', fontWeight: 600, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {nextUnlock.label}
-                    </div>
-                  </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--c-text-muted)', whiteSpace: 'nowrap' }}>
-                    {Math.min(overallBest, nextUnlock.minScore)}/{nextUnlock.minScore}
-                  </span>
-                </div>
-                <div style={{ height: 6, borderRadius: 999, background: 'var(--c-surface2)', overflow: 'hidden' }}>
-                  <div
-                    style={{
-                      width:      `${Math.min(100, (overallBest / nextUnlock.minScore) * 100)}%`,
-                      height:     '100%',
-                      background: 'linear-gradient(90deg, var(--c-accent), var(--c-accent2))',
-                      transition: 'width 0.4s ease',
-                    }}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="card" style={{ padding: '0.85rem 1.1rem', textAlign: 'center', fontSize: '0.8rem' }}>
-                🎉 All cosmetics unlocked — flex on the leaderboard.
-              </div>
-            )}
             {!user && (
               <div className="card" style={{ padding: '0.85rem', fontSize: '0.78rem', color: 'var(--c-text-muted)' }}>
                 Playing as guest — sign in to save unlocks and submit scores to the global leaderboard.
               </div>
             )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: 'auto' }}>
+              {phase !== 'playing' && (
+                <button
+                  id="flappy-start"
+                  className="btn btn-primary"
+                  onClick={startGame}
+                  disabled={phase === 'loading'}
+                  style={{ width: '100%' }}
+                >
+                  {phase === 'loading'
+                    ? <Loader size="sm" color="#fff" />
+                    : bestForCurrentMode > 0 ? '🔄 New Game' : '▶ Start Game'}
+                </button>
+              )}
+              <Link to="/leaderboard">
+                <button className="btn btn-secondary" style={{ width: '100%' }}>🏆 Leaderboard</button>
+              </Link>
+            </div>
           </aside>
 
           <section style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
@@ -560,16 +532,6 @@ export default function FlappyBirdPage() {
             </div>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', justifyContent: 'center', alignItems: 'center' }}>
-              {phase !== 'playing' && (
-                <button
-                  className="btn btn-primary"
-                  onClick={startGame}
-                  disabled={phase === 'loading'}
-                  style={{ minWidth: 140 }}
-                >
-                  {phase === 'loading' ? <Loader size="sm" color="#fff" /> : '▶ Start Run'}
-                </button>
-              )}
               {phase === 'playing' && (
                 <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.9rem', color: 'var(--c-text-muted)' }}>
                   <span>Score: <strong style={{ color: 'var(--c-text)' }}>{hudScore}</strong></span>
