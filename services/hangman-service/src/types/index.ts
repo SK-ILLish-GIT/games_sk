@@ -1,4 +1,4 @@
-import type { Difficulty, LetterFeedback, WordFeedback } from '../game/engine';
+import type { Difficulty, LetterFeedback } from '../game/engine';
 
 // ── A single guess record stored in a session ─────────────────────
 // `kind` distinguishes between letter and full-word guesses.
@@ -12,7 +12,7 @@ export interface GuessRecord {
 }
 
 export type DecoratedLetterRecord = GuessRecord & { kind: 'letter'; feedback: LetterFeedback };
-export type DecoratedWordRecord   = GuessRecord & { kind: 'word';   feedback: WordFeedback   };
+export type DecoratedWordRecord   = GuessRecord & { kind: 'word' };
 export type DecoratedGuessRecord  = DecoratedLetterRecord | DecoratedWordRecord;
 
 // ── Full in-memory / Redis game state (excludes MongoDB _id) ──────

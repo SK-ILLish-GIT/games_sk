@@ -82,7 +82,7 @@ function decorateGuess(record: GuessRecord, word: string): DecoratedGuessRecord 
   if (record.kind === 'letter') {
     return { ...record, kind: 'letter', feedback: engine.letterFeedback(word, record.value) };
   }
-  return { ...record, kind: 'word', feedback: engine.wordFeedback(word, record.value) };
+  return { ...record, kind: 'word' };
 }
 
 // Strips the secret word for active games; reveals it once the game is finished.
@@ -161,8 +161,7 @@ export const getGame = wrap(async (req: Request, res: Response) => {
   res.json({ success: true, data: toSafeState(state) });
 });
 
-// POST /games/:id/guess — processes a letter or full-word guess
-//   body: { letter: string }  OR  { word: string }
+// POST /games/:id/guess — processes a letter guess: { letter: string }
 export const makeGuess = wrap(async (req: Request, res: Response) => {
   const gameId = req.params.id;
   const state  = await getState(gameId);
@@ -178,13 +177,9 @@ export const makeGuess = wrap(async (req: Request, res: Response) => {
     return;
   }
 
-  const body = (req.body ?? {}) as { letter?: unknown; word?: unknown };
-  if (body.letter === undefined && body.word === undefined) {
-    res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, error: 'Either "letter" or "word" is required' });
-    return;
-  }
-  if (body.letter !== undefined && body.word !== undefined) {
-    res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, error: 'Provide either "letter" or "word", not both' });
+  const body = (req.body ?? {}) as { letter?: unknown };
+  if (body.letter === undefined) {
+    res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, error: '"letter" is required' });
     return;
   }
 
@@ -192,45 +187,31 @@ export const makeGuess = wrap(async (req: Request, res: Response) => {
   let recordedGuess: GuessRecord;
 
   try {
-    if (body.letter !== undefined) {
-      const letter = engine.normaliseLetter(body.letter);
-      const next = engine.applyLetterGuess(
-        state.word,
-        state.guessedLetters,
-        state.wrongGuesses,
-        state.maxWrong,
-        letter,
-      );
+    const letter = engine.normaliseLetter(body.letter);
+    const next = engine.applyLetterGuess(
+      state.word,
+      state.guessedLetters,
+      state.wrongGuesses,
+      state.maxWrong,
+      letter,
+    );
 
-      if (next.result.alreadyTried) {
-        res.status(HTTP_STATUS.BAD_REQUEST).json({ success: false, error: 'Letter already guessed' });
-        return;
-      }
-
-      state.guessedLetters = next.guessedLetters;
-      state.wrongGuesses   = next.wrongGuesses;
-      result = next.result;
-      recordedGuess = { kind: 'letter', value: letter, correct: next.result.correct, timestamp: new Date().toISOString() };
-    } else {
-      const guessedWord = engine.normaliseWord(body.word);
-      if (guessedWord.length !== state.word.length) {
-        res.status(HTTP_STATUS.BAD_REQUEST).json({
-          success: false,
-          error:   `Word must be ${state.word.length} letters`,
-        });
-        return;
-      }
-      const next = engine.applyWordGuess(state.word, state.wrongGuesses, state.maxWrong, guessedWord);
-
-      // A correct guess wins immediately; a wrong guess costs one wrong attempt
-      // and may end the game only if it crosses the maxWrong threshold.
-      state.wrongGuesses = next.wrongGuesses;
-      if (next.result.status === HangmanStatus.Won) {
-        state.guessedLetters = Array.from(new Set([...state.guessedLetters, ...state.word.split('')]));
-      }
-      result = next.result;
-      recordedGuess = { kind: 'word', value: guessedWord, correct: next.result.correct, timestamp: new Date().toISOString() };
+    if (next.result.alreadyTried) {
+      const safe = toSafeState(state);
+      res.json({
+        success: true,
+        data: {
+          ...safe,
+          attemptsLeft: Math.max(0, state.maxWrong - state.wrongGuesses),
+        },
+      });
+      return;
     }
+
+    state.guessedLetters = next.guessedLetters;
+    state.wrongGuesses   = next.wrongGuesses;
+    result = next.result;
+    recordedGuess = { kind: 'letter', value: letter, correct: next.result.correct, timestamp: new Date().toISOString() };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Invalid guess';
     logger.warn('Invalid guess payload', { gameId, error: message });

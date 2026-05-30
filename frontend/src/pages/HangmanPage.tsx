@@ -2,29 +2,39 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { hangmanAPI, getApiErrorMessage } from '../api/client';
 import { HangmanStatus, HangmanDifficulty } from '../enums/game.enum';
-import type { HangmanGame, HangmanGuessRecord } from '../types';
+import type { HangmanGame } from '../types';
 import BlurText from '../components/ui/BlurText';
 import SpotlightCard from '../components/ui/SpotlightCard';
 import StarBorder from '../components/ui/StarBorder';
 import Loader from '../components/ui/Loader';
+import HangmanFigure from '../components/hangman/HangmanFigure';
+import HangmanGuessStrip from '../components/hangman/HangmanGuessStrip';
+import Squares from '../components/ui/Squares';
 
 type GameState = HangmanGame;
 
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz'.split('');
 
-const DIFFICULTY_OPTIONS: { id: HangmanDifficulty; label: string }[] = [
-  { id: HangmanDifficulty.Easy,   label: 'Easy'   },
-  { id: HangmanDifficulty.Medium, label: 'Medium' },
-  { id: HangmanDifficulty.Hard,   label: 'Hard'   },
+const DIFFICULTY_OPTIONS: { id: HangmanDifficulty; label: string; hint: string }[] = [
+  { id: HangmanDifficulty.Easy,   label: 'Easy',   hint: 'Short, common words' },
+  { id: HangmanDifficulty.Medium, label: 'Medium', hint: 'Balanced challenge'    },
+  { id: HangmanDifficulty.Hard,   label: 'Hard',   hint: 'Longer, tougher words' },
 ];
 
 export default function HangmanPage() {
   const [game, setGame]               = useState<GameState | null>(null);
   const [difficulty, setDifficulty]   = useState<HangmanDifficulty>(HangmanDifficulty.Medium);
-  const [wordGuess, setWordGuess]     = useState('');
   const [loading, setLoading]         = useState(false);
   const [submitting, setSubmitting]   = useState(false);
   const [error, setError]             = useState('');
+
+  const maxWrong     = game?.maxWrong ?? 6;
+  const wrongGuesses = game?.wrongGuesses ?? 0;
+  const attemptsLeft = Math.max(0, maxWrong - wrongGuesses);
+  const meterWidth   = `${Math.min(100, (wrongGuesses / maxWrong) * 100)}%`;
+  const isLost       = game?.status === HangmanStatus.Lost;
+  const isActive     = game?.status === HangmanStatus.Active;
+  const canPickDifficulty = !game || !isActive;
 
   const startGame = async (level: HangmanDifficulty = difficulty) => {
     setLoading(true);
@@ -32,7 +42,6 @@ export default function HangmanPage() {
     try {
       const r = await hangmanAPI.create(level);
       setGame(r.data.data as GameState);
-      setWordGuess('');
     } catch {
       setError('Failed to start game. Is the service running?');
     } finally {
@@ -55,220 +64,229 @@ export default function HangmanPage() {
     }
   };
 
-  const submitWordGuess = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!game || !wordGuess.trim() || game.status !== HangmanStatus.Active) return;
-    setSubmitting(true);
-    setError('');
-    try {
-      const r = await hangmanAPI.guessWord(game.gameId, wordGuess.trim());
-      setGame(r.data.data as GameState);
-      setWordGuess('');
-    } catch (err: unknown) {
-      setError(getApiErrorMessage(err, 'Guess failed'));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const attemptsLeft = game ? Math.max(0, game.maxWrong - game.wrongGuesses) : 0;
-  const meterWidth   = game ? `${(game.wrongGuesses / game.maxWrong) * 100}%` : '0%';
-
-  const renderGuessRow = (g: HangmanGuessRecord, key: number | string) => {
-    if (g.kind === 'letter') {
-      const { occurrences, positions } = g.feedback;
+  const renderStatus = () => {
+    if (!game) {
       return (
-        <li key={key} className="hangman-guess">
-          <span className="hangman-guess-letter">{g.value.toUpperCase()}</span>
-          {occurrences > 0 ? (
-            <span className="hangman-guess-detail hint-correct">
-              ✓ {occurrences} {occurrences === 1 ? 'match' : 'matches'} at position{positions.length === 1 ? '' : 's'} {positions.map(p => p + 1).join(', ')}
-            </span>
-          ) : (
-            <span className="hangman-guess-detail hint-too-high">✗ not in word</span>
-          )}
-        </li>
+        <>
+          <div style={{ fontSize: '0.7rem', color: 'var(--c-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>
+            Status
+          </div>
+          <div style={{ fontSize: '1rem', fontWeight: 600 }}>Press Start Game to begin</div>
+          <p style={{ fontSize: '0.78rem', color: 'var(--c-text-muted)', marginTop: '0.35rem' }}>
+            6 wrong guesses allowed. Harder words score higher.
+          </p>
+        </>
       );
     }
-    const { perPosition, correctPositions, presentLetters } = g.feedback;
-    return (
-      <li key={key} className="hangman-guess hangman-guess-word">
-        <div className="hangman-guess-chips">
-          {perPosition.map((status, i) => (
-            <span key={i} className={`hangman-chip is-${status}`}>{g.value[i]?.toUpperCase()}</span>
-          ))}
+    if (game.status === HangmanStatus.Won) {
+      return (
+        <StarBorder color="var(--c-green)" speed="3s" style={{ width: '100%' }}>
+          <div style={{ padding: '0.85rem 1rem', background: 'var(--c-surface)', borderRadius: 'calc(var(--radius-sm) - 1px)', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.7rem', color: 'var(--c-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+              Solved
+            </div>
+            <div style={{ fontSize: '1rem', marginBottom: '0.35rem' }}>
+              🎉 {wrongGuesses} wrong guess{wrongGuesses !== 1 ? 'es' : ''}
+            </div>
+            {game.word && (
+              <div style={{ fontSize: '0.9rem', color: 'var(--c-text-muted)' }}>
+                Word: <strong style={{ color: 'var(--c-text)' }}>{game.word}</strong>
+              </div>
+            )}
+          </div>
+        </StarBorder>
+      );
+    }
+    if (game.status === HangmanStatus.Lost) {
+      return (
+        <div className="alert alert-error" style={{ textAlign: 'center', margin: 0 }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--c-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+            Out of attempts
+          </div>
+          <div style={{ fontSize: '0.95rem' }}>
+            😔 The word was <strong>{game.word ?? '???'}</strong>
+          </div>
         </div>
-        <span className="hangman-guess-detail">
-          {g.correct
-            ? <span className="hint-correct">✓ exact match</span>
-            : <>{correctPositions} correct · {presentLetters} misplaced</>}
-        </span>
-      </li>
+      );
+    }
+    return (
+      <>
+        <div style={{ fontSize: '0.7rem', color: 'var(--c-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>
+          Wrong guesses
+        </div>
+        <div style={{ fontSize: '1.6rem', fontWeight: 700, lineHeight: 1 }}>
+          {attemptsLeft}<span style={{ fontSize: '0.95rem', fontWeight: 500, color: 'var(--c-text-muted)' }}> / {maxWrong} left</span>
+        </div>
+        <p style={{ fontSize: '0.78rem', color: 'var(--c-text-muted)', marginTop: '0.35rem', textTransform: 'capitalize' }}>
+          {game.difficulty} · {game.maskedWord.length} letters
+        </p>
+      </>
     );
   };
 
   return (
     <div className="page">
-      <div className="container" style={{ maxWidth: '800px' }}>
-        <div className="page-header" style={{ textAlign: 'center', marginBottom: '2rem' }}>
+      <div className="container" style={{ maxWidth: 1200 }}>
+        <div className="page-header" style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
           <h1 className="page-title">
             <BlurText text="🪢 Hangman" delay={50} />
           </h1>
           <p>Guess the word one letter at a time. 6 wrong guesses and you’re out.</p>
         </div>
 
-        {error && <div className="alert alert-error">{error}</div>}
+        {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
 
-        {!game && (
-          <SpotlightCard className="card" style={{ padding: '2rem', textAlign: 'center' }} spotlightColor="rgba(129, 140, 248, 0.12)">
-            <div style={{ fontSize: '5rem', marginBottom: '1rem' }}>🪢</div>
-            <p style={{ marginBottom: '0.5rem' }}>6 wrong guesses allowed.</p>
-            <p style={{ marginBottom: '1.5rem', fontSize: '0.85rem', color: 'var(--c-text-muted)' }}>
-              Each wrong guess costs 10 points · harder words score higher
-            </p>
+        <div className="game-layout" style={{
+          display:             'grid',
+          gridTemplateColumns: 'minmax(260px, 300px) 1fr',
+          gap:                 '1.25rem',
+          alignItems:          'stretch',
+        }}>
+          <aside style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 640 }}>
+            <div className="card" style={{ padding: '1.1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              {renderStatus()}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--c-text-muted)', marginBottom: '0.25rem' }}>
+                  <span>Used: {wrongGuesses}/{maxWrong}</span>
+                  <span>{attemptsLeft} left</span>
+                </div>
+                <div className="guess-meter" style={{ margin: 0 }}>
+                  <div className="guess-meter-fill" style={{ width: meterWidth }} />
+                </div>
+              </div>
+            </div>
 
-            <div style={{ marginBottom: '1.5rem' }}>
-              <p style={{ fontSize: '0.85rem', color: 'var(--c-text-muted)', marginBottom: '0.5rem' }}>Choose difficulty</p>
-              <div className="flex gap-sm" style={{ justifyContent: 'center', flexWrap: 'wrap' }}>
+            <div className="card" style={{ padding: '1rem 1.25rem' }}>
+              <h3 style={{ marginBottom: '0.4rem' }}>How to play</h3>
+              <p style={{ fontSize: '0.78rem', color: 'var(--c-text-muted)', lineHeight: 1.5 }}>
+                Tap one letter at a time to reveal the hidden word. Each wrong letter costs one of your 6 lives.
+              </p>
+            </div>
+
+            <div className="card" style={{ padding: '1rem 1.25rem' }}>
+              <h3 style={{ marginBottom: '0.65rem' }}>Difficulty</h3>
+              <div className="hangman-difficulty-stack">
                 {DIFFICULTY_OPTIONS.map(opt => (
                   <button
                     key={opt.id}
                     id={`hm-difficulty-${opt.id}`}
                     type="button"
-                    className={`btn btn-sm ${difficulty === opt.id ? 'btn-primary' : 'btn-secondary'}`}
+                    className={`btn btn-sm hangman-difficulty-btn ${difficulty === opt.id ? 'btn-primary' : 'btn-secondary'}`}
                     onClick={() => setDifficulty(opt.id)}
-                    style={{ minWidth: 90 }}
+                    disabled={!canPickDifficulty || loading}
                   >
-                    {opt.label}
+                    <span>{opt.label}</span>
+                    <span className="hangman-difficulty-hint">{opt.hint}</span>
                   </button>
                 ))}
               </div>
             </div>
 
-            <button
-              id="hm-start"
-              className="btn btn-primary"
-              onClick={() => startGame()}
-              disabled={loading}
-              style={{ minWidth: 140 }}
-            >
-              {loading ? <Loader size="sm" color="#fff" /> : 'Start Game'}
-            </button>
-          </SpotlightCard>
-        )}
-
-        {game && (
-          <SpotlightCard className="card" style={{ padding: '2rem' }} spotlightColor="rgba(129, 140, 248, 0.12)">
-            {/* Status banner */}
-            {game.status === HangmanStatus.Won && (
-              <StarBorder color="var(--c-green)" speed="3s" style={{ width: '100%', marginBottom: '1.5rem' }}>
-                <div style={{ textAlign: 'center', padding: '1rem', background: 'var(--c-surface)', borderRadius: 'calc(var(--radius-sm) - 1px)' }}>
-                  <div style={{ fontSize: '1.1rem', marginBottom: '0.25rem' }}>
-                    🎉 You got it with {game.wrongGuesses} wrong guess{game.wrongGuesses !== 1 ? 'es' : ''}!
-                  </div>
-                  {game.word && (
-                    <div style={{ fontSize: '0.95rem', color: 'var(--c-text-muted)' }}>
-                      The word was <strong style={{ color: 'var(--c-text)' }}>{game.word}</strong>
-                    </div>
-                  )}
-                </div>
-              </StarBorder>
-            )}
-            {game.status === HangmanStatus.Lost && (
-              <div className="alert alert-error" style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                😔 Out of attempts! The word was <strong>{game.word ?? '???'}</strong>.
-              </div>
-            )}
-
-            {/* Wrong-guess meter */}
-            <div style={{ marginBottom: '0.4rem', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--c-text-muted)' }}>
-              <span>Wrong guesses: {game.wrongGuesses}/{game.maxWrong}</span>
-              <span>{attemptsLeft} left · {game.difficulty}</span>
-            </div>
-            <div className="guess-meter" style={{ marginBottom: '1.5rem' }}>
-              <div className="guess-meter-fill" style={{ width: meterWidth }} />
-            </div>
-
-            {/* Masked word */}
-            <div className="hangman-word">
-              {game.maskedWord.split('').map((ch, i) => (
-                <span key={i} className={`hangman-letter ${ch === '_' ? 'is-blank' : ''}`}>
-                  {ch === '_' ? '\u00A0' : ch}
-                </span>
-              ))}
-            </div>
-
-            {/* On-screen keyboard */}
-            <div className="hangman-keyboard">
-              {ALPHABET.map(letter => {
-                const tried   = game.guessedLetters.includes(letter);
-                const inWord  = tried && game.maskedWord.includes(letter);
-                const wrong   = tried && !inWord;
-                const cls = tried
-                  ? (inWord ? 'hangman-key is-correct' : 'hangman-key is-wrong')
-                  : 'hangman-key';
-                return (
-                  <button
-                    key={letter}
-                    id={`hm-key-${letter}`}
-                    type="button"
-                    className={cls}
-                    disabled={tried || submitting || game.status !== HangmanStatus.Active}
-                    onClick={() => guessLetter(letter)}
-                  >
-                    {letter}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Full-word guess */}
-            {game.status === HangmanStatus.Active && (
-              <form onSubmit={submitWordGuess} className="guess-input-row" style={{ marginTop: '1.5rem' }}>
-                <input
-                  id="hm-word-input"
-                  className="input"
-                  type="text"
-                  value={wordGuess}
-                  maxLength={game.maskedWord.length}
-                  onChange={e => setWordGuess(e.target.value.replace(/[^a-zA-Z]/g, '').slice(0, game.maskedWord.length))}
-                  placeholder={`Guess the full word (${game.maskedWord.length} letters)`}
-                  disabled={submitting}
-                  autoComplete="off"
-                />
-                <button
-                  id="hm-word-submit"
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={submitting || wordGuess.length !== game.maskedWord.length}
-                  style={{ minWidth: 90 }}
-                >
-                  {submitting ? <Loader size="sm" color="#fff" /> : 'Solve'}
-                </button>
-              </form>
-            )}
-
-            {/* Guess history */}
-            {game.guesses.length > 0 && (
-              <div className="hangman-history-wrap">
-                <h4 className="hangman-history-title">Guess history</h4>
-                <ul className="hangman-history">
-                  {[...game.guesses].reverse().map((g, i) => renderGuessRow(g, i))}
-                </ul>
-              </div>
-            )}
-
-            <div style={{ textAlign: 'center', marginTop: '2rem', display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button id="hm-new" className="btn btn-primary" onClick={() => startGame()} disabled={loading} style={{ minWidth: 140 }}>
-                {loading ? <Loader size="sm" color="#fff" /> : '🔄 New Game'}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: 'auto' }}>
+              <button
+                id="hm-start"
+                className="btn btn-primary"
+                onClick={() => startGame()}
+                disabled={loading}
+                style={{ width: '100%' }}
+              >
+                {loading
+                  ? <Loader size="sm" color="#fff" />
+                  : game ? '🔄 New Game' : '▶ Start Game'}
               </button>
               <Link to="/leaderboard">
-                <button className="btn btn-secondary">🏆 Leaderboard</button>
+                <button className="btn btn-secondary" style={{ width: '100%' }}>🏆 Leaderboard</button>
               </Link>
             </div>
-          </SpotlightCard>
-        )}
+          </aside>
+
+          <section style={{ display: 'flex', alignItems: 'stretch', minHeight: 640 }}>
+            <SpotlightCard
+              className="card guess-play-panel"
+              spotlightColor="rgba(129, 140, 248, 0.12)"
+              style={{ padding: '2rem', width: '100%', display: 'flex', flexDirection: 'column' }}
+            >
+              {!game ? (
+                <div className="hangman-play-empty">
+                  <HangmanFigure wrongGuesses={0} variant="preview" />
+                  <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>Pick a difficulty and press Start Game.</p>
+                </div>
+              ) : (
+                <div className="hangman-play-body">
+                  <div className="hangman-board">
+                    <HangmanFigure
+                      wrongGuesses={wrongGuesses}
+                      maxWrong={maxWrong}
+                      isLost={isLost}
+                    />
+
+                    <div className="hangman-board-main">
+                      <div className="hangman-word-panel">
+                        <div className="hangman-word">
+                          {game.maskedWord.split('').map((ch, i) => (
+                            <span key={i} className={`hangman-letter ${ch === '_' ? 'is-blank' : 'is-revealed'}`}>
+                              {ch === '_' ? '\u00A0' : ch}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="hangman-keyboard-wrap">
+                        <div className="hangman-keyboard">
+                          {ALPHABET.map(letter => {
+                            const tried  = game.guessedLetters.includes(letter);
+                            const inWord = tried && game.maskedWord.includes(letter);
+                            const cls = tried
+                              ? (inWord ? 'hangman-key is-correct' : 'hangman-key is-wrong')
+                              : 'hangman-key';
+                            return (
+                              <button
+                                key={letter}
+                                id={`hm-key-${letter}`}
+                                type="button"
+                                className={cls}
+                                disabled={tried || submitting || !isActive}
+                                onClick={() => guessLetter(letter)}
+                              >
+                                {letter}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="hangman-guess-compact">
+                        <div className="hangman-guess-compact-head">
+                          <span className="hangman-history-title">Guessed letters</span>
+                          <span className="hangman-guess-legend">
+                            <span className="hangman-guess-legend-item is-hit">in word</span>
+                            <span className="hangman-guess-legend-item is-miss">wrong</span>
+                          </span>
+                        </div>
+                        <HangmanGuessStrip guesses={game.guesses} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {game.gameId && (
+                    <p className="hangman-game-id">
+                      Game ID: {game.gameId.slice(0, 8)}…
+                    </p>
+                  )}
+                </div>
+              )}
+            </SpotlightCard>
+          </section>
+        </div>
       </div>
+
+      <style>{`
+        @media (max-width: 900px) {
+          .game-layout {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

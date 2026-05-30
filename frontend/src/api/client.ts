@@ -84,7 +84,6 @@ export const hangmanAPI = {
   create: (difficulty?: 'easy' | 'medium' | 'hard') => api.post('/hangman/games', difficulty ? { difficulty } : {}),
   get: (id: string) => api.get(`/hangman/games/${id}`),
   guessLetter: (id: string, letter: string) => api.post(`/hangman/games/${id}/guess`, { letter }),
-  guessWord:   (id: string, word: string)   => api.post(`/hangman/games/${id}/guess`, { word }),
 };
 
 // Flappy Bird

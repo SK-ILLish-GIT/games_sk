@@ -77,17 +77,9 @@ export interface GuessNumberGame {
 }
 
 // ── Hangman ──────────────────────────────────────────────────────
-export type HangmanPositionStatus = 'correct' | 'present' | 'absent';
-
 export interface HangmanLetterFeedback {
   occurrences: number;
   positions:   number[];
-}
-
-export interface HangmanWordFeedback {
-  perPosition:      HangmanPositionStatus[];
-  correctPositions: number;
-  presentLetters:   number;
 }
 
 export interface HangmanLetterGuess {
@@ -102,7 +94,6 @@ export interface HangmanWordGuess {
   kind:      'word';
   value:     string;
   correct:   boolean;
-  feedback:  HangmanWordFeedback;
   timestamp?: string;
 }
 

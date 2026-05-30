@@ -482,12 +482,270 @@ label { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; font-weight:
 .guess-meter-fill { height: 100%; background: linear-gradient(90deg, var(--c-green), var(--c-accent2), var(--c-red)); border-radius: 99px; transition: width 0.4s ease; }
 
 /* Hangman */
+.hangman-board {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) 1fr;
+  gap: 1.25rem;
+  align-items: stretch;
+  min-height: 0;
+}
+.hangman-board-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 0;
+  min-width: 0;
+}
+.hangman-word-panel {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 0.5rem 0.25rem;
+}
+.hangman-figure-scene {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--c-border);
+  background: var(--c-surface2);
+  overflow: hidden;
+  color: var(--c-text-muted);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.hangman-figure-scene.is-preview {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--c-accent) 35%, var(--c-border));
+  animation: hangman-preview-breathe 3.5s ease-in-out infinite;
+}
+.hangman-figure-scene.is-playing.has-no-body {
+  border-color: color-mix(in srgb, var(--c-accent) 25%, var(--c-border));
+}
+.hangman-figure-scene.is-lost {
+  border-color: var(--c-red);
+  box-shadow: 0 0 20px rgba(245, 97, 124, 0.15);
+  animation: hangman-shake 0.45s ease;
+}
+.hangman-figure-scene.is-wrong-hit {
+  animation: hangman-wrong-hit 0.5s ease;
+}
+.hangman-figure-scene.is-wrong-hit.is-lost {
+  animation: hangman-shake 0.45s ease;
+}
+.hangman-figure-glow {
+  position: absolute;
+  inset: 20% 15% 25%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--c-accent-glow) 0%, transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.hangman-figure-scene.is-preview .hangman-figure-glow {
+  opacity: 0.55;
+  animation: hangman-glow-pulse 3.5s ease-in-out infinite;
+}
+.hangman-figure-scene.is-wrong-hit .hangman-figure-glow {
+  opacity: 0.7;
+  animation: hangman-glow-flash 0.5s ease forwards;
+}
+.hangman-figure-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  background-image:
+    linear-gradient(rgba(129, 140, 248, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(129, 140, 248, 0.12) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+.hangman-figure-scene.is-preview .hangman-figure-grid {
+  animation: hangman-grid-drift 8s linear infinite;
+}
+.hangman-figure-svg {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  padding: 0.5rem;
+}
+.hangman-gallows { color: var(--c-text-muted); }
+.hangman-gallows-line {
+  stroke-dasharray: 120;
+  stroke-dashoffset: 120;
+  opacity: 0;
+}
+/* Preview: ghost gallows loops in and out */
+.hangman-figure-scene.is-preview .hangman-gallows-line {
+  stroke-dasharray: 8 6;
+  animation: hangman-gallows-ghost 4s ease-in-out infinite;
+}
+.hangman-figure-scene.is-preview .hangman-gallows-base  { animation-delay: 0s; }
+.hangman-figure-scene.is-preview .hangman-gallows-post  { animation-delay: 0.35s; }
+.hangman-figure-scene.is-preview .hangman-gallows-beam  { animation-delay: 0.7s; }
+.hangman-figure-scene.is-preview .hangman-gallows-rope  { animation-delay: 1.05s; }
+/* Playing: gallows draws in once on mount */
+.hangman-figure-scene.is-playing .hangman-gallows-line {
+  stroke-dasharray: 120;
+  animation: hangman-gallows-draw 0.55s ease forwards;
+}
+.hangman-figure-scene.is-playing .hangman-gallows-base  { animation-delay: 0.05s; }
+.hangman-figure-scene.is-playing .hangman-gallows-post  { animation-delay: 0.2s; }
+.hangman-figure-scene.is-playing .hangman-gallows-beam  { animation-delay: 0.35s; }
+.hangman-figure-scene.is-playing .hangman-gallows-rope  { animation-delay: 0.5s; }
+/* Idle rope sway before any wrong guesses */
+.hangman-figure-scene.is-playing.has-no-body .hangman-gallows-rope {
+  transform-box: fill-box;
+  transform-origin: top center;
+  animation:
+    hangman-gallows-draw 0.55s ease forwards,
+    hangman-rope-sway 2.4s ease-in-out 0.7s infinite;
+}
+.hangman-body { color: var(--c-accent); }
+.hangman-figure-scene.is-lost .hangman-body { color: var(--c-red); }
+.hangman-part {
+  opacity: 0;
+  transform-origin: center;
+}
+.hangman-part.is-visible {
+  opacity: 1;
+}
+.hangman-part-head.is-visible {
+  transform-origin: 124px 68px;
+  animation: hangman-head-drop 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+}
+.hangman-part-body.is-visible {
+  stroke-dasharray: 60;
+  animation: hangman-draw 0.45s ease 0.08s forwards;
+}
+.hangman-part-arm-l.is-visible,
+.hangman-part-arm-r.is-visible,
+.hangman-part-leg-l.is-visible,
+.hangman-part-leg-r.is-visible {
+  stroke-dasharray: 40;
+  animation: hangman-draw 0.4s ease forwards;
+}
+.hangman-figure-scene.has-body:not(.is-lost) .hangman-body {
+  transform-origin: 124px 48px;
+  animation: hangman-body-settle 0.6s ease forwards;
+}
+.hangman-figure-scene.is-lost .hangman-body {
+  animation: hangman-sway 2.8s ease-in-out infinite;
+  transform-origin: 124px 48px;
+}
+.hangman-figure-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.4rem;
+  z-index: 2;
+  text-align: center;
+  font-size: 0.68rem;
+  color: var(--c-text-muted);
+  letter-spacing: 0.03em;
+}
+.hangman-figure-scene.is-preview .hangman-figure-caption {
+  color: color-mix(in srgb, var(--c-accent) 70%, var(--c-text-muted));
+}
+@keyframes hangman-preview-breathe {
+  0%, 100% { box-shadow: inset 0 0 0 rgba(129, 140, 248, 0); }
+  50%      { box-shadow: inset 0 0 40px rgba(129, 140, 248, 0.06); }
+}
+@keyframes hangman-glow-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.95); }
+  50%      { opacity: 0.65; transform: scale(1.05); }
+}
+@keyframes hangman-glow-flash {
+  0%   { opacity: 0; transform: scale(0.9); }
+  30%  { opacity: 0.85; transform: scale(1.08); }
+  100% { opacity: 0; transform: scale(1); }
+}
+@keyframes hangman-grid-drift {
+  0%   { background-position: 0 0, 0 0; }
+  100% { background-position: 18px 18px, 18px 18px; }
+}
+@keyframes hangman-gallows-ghost {
+  0%, 100% { stroke-dashoffset: 120; opacity: 0.15; }
+  40%, 60% { stroke-dashoffset: 0;   opacity: 0.55; }
+}
+@keyframes hangman-gallows-draw {
+  from { stroke-dashoffset: 120; opacity: 0; }
+  to   { stroke-dashoffset: 0;   opacity: 1; }
+}
+@keyframes hangman-rope-sway {
+  0%, 100% { transform: rotate(0deg); }
+  25%      { transform: rotate(3deg); }
+  75%      { transform: rotate(-3deg); }
+}
+@keyframes hangman-head-drop {
+  0%   { opacity: 0; transform: translateY(-28px) scale(0.6); }
+  55%  { opacity: 1; transform: translateY(4px) scale(1.05); }
+  75%  { transform: translateY(-2px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes hangman-body-settle {
+  0%   { transform: rotate(0deg); }
+  35%  { transform: rotate(2deg); }
+  65%  { transform: rotate(-1deg); }
+  100% { transform: rotate(0deg); }
+}
+@keyframes hangman-part-in {
+  from { opacity: 0; transform: scale(0.4); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes hangman-draw {
+  from { stroke-dashoffset: 40; opacity: 0; }
+  to   { stroke-dashoffset: 0;  opacity: 1; }
+}
+@keyframes hangman-sway {
+  0%, 100% { transform: rotate(0deg); }
+  50%      { transform: rotate(2.5deg); }
+}
+@keyframes hangman-wrong-hit {
+  0%   { transform: translateX(0); }
+  15%  { transform: translateX(-5px); }
+  30%  { transform: translateX(5px); }
+  45%  { transform: translateX(-3px); }
+  60%  { transform: translateX(3px); }
+  100% { transform: translateX(0); }
+}
+@keyframes hangman-shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-4px); }
+  40%      { transform: translateX(4px); }
+  60%      { transform: translateX(-3px); }
+  80%      { transform: translateX(3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hangman-figure-scene.is-preview,
+  .hangman-figure-scene.is-preview .hangman-figure-glow,
+  .hangman-figure-scene.is-preview .hangman-figure-grid,
+  .hangman-figure-scene.is-preview .hangman-gallows-line,
+  .hangman-figure-scene.is-playing.has-no-body .hangman-gallows-rope,
+  .hangman-figure-scene.is-lost .hangman-body {
+    animation: none !important;
+  }
+  .hangman-figure-scene.is-preview .hangman-gallows-line,
+  .hangman-figure-scene.is-playing .hangman-gallows-line {
+    stroke-dashoffset: 0;
+    opacity: 0.45;
+  }
+  .hangman-figure-scene.is-playing .hangman-gallows-line {
+    opacity: 1;
+  }
+  .hangman-part.is-visible {
+    opacity: 1;
+    animation: none !important;
+  }
+}
 .hangman-word {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.5rem;
-  margin: 1rem 0 1.5rem;
+  margin: 0;
   font-family: 'Outfit', system-ui, sans-serif;
 }
 .hangman-letter {
@@ -502,18 +760,38 @@ label { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; font-weight:
   letter-spacing: 0.05em;
   color: var(--c-text);
   text-transform: uppercase;
+  transition: border-color 0.25s ease, color 0.25s ease, transform 0.25s ease;
 }
 .hangman-letter.is-blank { color: transparent; border-bottom-color: var(--c-accent); }
+.hangman-letter.is-revealed {
+  border-bottom-color: var(--c-green);
+  animation: hangman-letter-pop 0.3s ease;
+}
+@keyframes hangman-letter-pop {
+  0%   { transform: translateY(6px); opacity: 0.3; }
+  100% { transform: translateY(0);   opacity: 1; }
+}
 
+.hangman-keyboard-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+}
 .hangman-keyboard {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(2.2rem, 1fr));
-  gap: 0.4rem;
-  max-width: 540px;
+  grid-template-columns: repeat(5, minmax(2.25rem, 1fr));
+  gap: 0.45rem;
+  width: 100%;
+  max-width: 340px;
   margin: 0 auto;
 }
+.hangman-key:nth-child(26) {
+  grid-column: 3;
+}
 .hangman-key {
-  padding: 0.6rem 0.4rem;
+  padding: 0.7rem 0.35rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--c-border);
   background: var(--c-surface2);
@@ -530,59 +808,152 @@ label { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; font-weight:
 .hangman-key.is-correct { background: rgba(16,185,129,0.18); border-color: var(--c-green); color: var(--c-green); }
 .hangman-key.is-wrong   { background: rgba(244,63,94,0.16);  border-color: var(--c-red);   color: var(--c-red);   }
 
-.hangman-history-wrap { max-width: 540px; margin: 1.75rem auto 0; }
-.hangman-history-title {
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--c-text-muted);
-  margin-bottom: 0.5rem;
-  text-align: center;
+.hangman-difficulty-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
-.hangman-history { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
-.hangman-guess {
+.hangman-difficulty-btn {
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.55rem 0.85rem;
+  text-align: left;
+}
+.hangman-difficulty-hint {
+  font-size: 0.72rem;
+  font-weight: 500;
+  opacity: 0.75;
+}
+.hangman-play-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--c-text-muted);
+  min-height: 480px;
+  gap: 0.75rem;
+}
+.hangman-play-empty .hangman-figure-scene {
+  width: min(520px, 92%);
+  height: auto;
+  aspect-ratio: 200 / 210;
+  max-height: min(420px, 48vh);
+  min-height: 300px;
+  flex-shrink: 0;
+  opacity: 1;
+}
+.hangman-play-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 0;
+  height: 100%;
+}
+.hangman-game-id {
+  flex-shrink: 0;
+  text-align: center;
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--c-text-muted);
+}
+.hangman-guess-compact {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding: 0.65rem 0.85rem;
+  background: var(--c-surface2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+}
+.hangman-guess-compact-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.55rem 0.9rem;
-  background: var(--c-surface2);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm);
-  font-size: 0.9rem;
+  margin-bottom: 0.45rem;
 }
-.hangman-guess-letter {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.85rem; height: 1.85rem;
+.hangman-guess-legend {
+  display: flex;
+  gap: 0.65rem;
+  font-size: 0.68rem;
+  color: var(--c-text-muted);
+}
+.hangman-guess-legend-item::before {
+  content: '';
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
   border-radius: 50%;
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  font-weight: 700;
-  text-transform: uppercase;
-  flex-shrink: 0;
+  margin-right: 0.25rem;
+  vertical-align: middle;
 }
-.hangman-guess-detail { color: var(--c-text-muted); font-size: 0.85rem; }
-.hangman-guess-word { flex-direction: column; align-items: stretch; gap: 0.5rem; }
-.hangman-guess-word .hangman-guess-detail { text-align: right; }
-.hangman-guess-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-.hangman-chip {
+.hangman-guess-legend-item.is-hit::before  { background: var(--c-green); }
+.hangman-guess-legend-item.is-miss::before { background: var(--c-red); }
+.hangman-guess-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  max-height: 4.5rem;
+  overflow-y: auto;
+  padding-right: 0.1rem;
+}
+.hangman-guess-strip-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--c-text-muted);
+}
+.hangman-guess-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.75rem; height: 1.75rem;
-  border-radius: var(--radius-sm);
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
   font-weight: 700;
-  font-size: 0.85rem;
   text-transform: uppercase;
   border: 1px solid var(--c-border);
-  background: var(--c-surface);
-  color: var(--c-text);
+  animation: hangman-pill-in 0.25s ease;
 }
-.hangman-chip.is-correct { background: rgba(16,185,129,0.22);  border-color: var(--c-green);   color: var(--c-green);   }
-.hangman-chip.is-present { background: rgba(251,191,36,0.22);  border-color: var(--c-accent2); color: var(--c-accent2); }
-.hangman-chip.is-absent  { opacity: 0.55; }
+.hangman-guess-pill.is-hit {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: var(--c-green);
+  color: var(--c-green);
+}
+.hangman-guess-pill.is-miss {
+  background: rgba(244, 63, 94, 0.14);
+  border-color: var(--c-red);
+  color: var(--c-red);
+}
+@keyframes hangman-pill-in {
+  from { opacity: 0; transform: scale(0.7); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.hangman-history-title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--c-text-muted);
+  margin: 0;
+}
+@media (max-width: 700px) {
+  .hangman-board {
+    grid-template-columns: 1fr;
+  }
+  .hangman-figure-scene {
+    min-height: 220px;
+    max-height: 260px;
+  }
+  .hangman-keyboard {
+    max-width: 100%;
+    grid-template-columns: repeat(5, minmax(2rem, 1fr));
+  }
+}
 
 /* ── Alert/toast ─────────────────────────────────────────────────── */
 .alert { padding: 0.75rem 1rem; border-radius: var(--radius-sm); font-size: 0.9rem; margin-bottom: 1rem; }
