@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { guessAPI, getApiErrorMessage } from '../api/client';
 import { GuessStatus, Hint } from '../enums/game.enum';
@@ -7,6 +7,7 @@ import BlurText from '../components/ui/BlurText';
 import SpotlightCard from '../components/ui/SpotlightCard';
 import StarBorder from '../components/ui/StarBorder';
 import Loader from '../components/ui/Loader';
+import GuessRangeViz from '../components/guess/GuessRangeViz';
 
 type GameState = GuessNumberGame;
 
@@ -16,6 +17,11 @@ export default function GuessNumberPage() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const focusInput = () => {
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
 
   const startGame = async () => {
     setLoading(true);
@@ -24,6 +30,7 @@ export default function GuessNumberPage() {
       const r = await guessAPI.create();
       setGame(r.data.data);
       setGuessInput('');
+      focusInput();
     } catch {
       setError('Failed to start game. Is the service running?');
     } finally {
@@ -40,10 +47,17 @@ export default function GuessNumberPage() {
     setError('');
     try {
       const r = await guessAPI.guess(game.gameId, num);
-      setGame(r.data.data as GameState);
+      const updated = r.data.data as GameState;
+      setGame(updated);
       setGuessInput('');
+      if (updated.status === GuessStatus.Active) {
+        focusInput();
+      }
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, 'Guess failed'));
+      if (game.status === GuessStatus.Active) {
+        focusInput();
+      }
     } finally {
       setSubmitting(false);
     }
@@ -133,7 +147,7 @@ export default function GuessNumberPage() {
           gap:                 '1.25rem',
           alignItems:          'stretch',
         }}>
-          <aside style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <aside style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 640 }}>
             <div className="card" style={{ padding: '1.1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
               {renderStatus()}
               <div>
@@ -154,6 +168,8 @@ export default function GuessNumberPage() {
               </p>
             </div>
 
+            <GuessRangeViz game={game} compact />
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: 'auto' }}>
               <button
                 id="guess-start"
@@ -172,22 +188,24 @@ export default function GuessNumberPage() {
             </div>
           </aside>
 
-          <section style={{ display: 'flex', alignItems: 'stretch' }}>
+          <section style={{ display: 'flex', alignItems: 'stretch', minHeight: 640 }}>
             <SpotlightCard
-              className="card"
+              className="card guess-play-panel"
               spotlightColor="rgba(245, 97, 124, 0.1)"
-              style={{ padding: '2rem', width: '100%', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+              style={{ padding: '2rem', width: '100%' }}
             >
               <form onSubmit={submitGuess} className="guess-input-row" aria-disabled={!isActive}>
                 <input
+                  ref={inputRef}
                   id="guess-input"
                   className="input"
                   type="number"
                   min={1} max={100}
                   value={guessInput}
                   onChange={e => setGuessInput(e.target.value)}
-                  placeholder={isActive ? 'Enter 1–100' : 'Press Start Game on the left'}
-                  disabled={submitting || !isActive}
+                  placeholder={isActive ? 'Enter 1–100' : 'Start a game first'}
+                  disabled={!isActive}
+                  readOnly={submitting}
                   autoFocus={isActive}
                 />
                 <button
@@ -195,36 +213,34 @@ export default function GuessNumberPage() {
                   type="submit"
                   className="btn btn-primary"
                   disabled={submitting || !isActive || !guessInput}
-                  style={{ minWidth: 100 }}
                 >
                   {submitting ? <Loader size="sm" color="#fff" /> : 'Guess'}
                 </button>
               </form>
 
-              {!game ? (
-                <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--c-text-muted)' }}>
-                  <div style={{ fontSize: '4rem', marginBottom: '0.75rem', opacity: 0.55 }}>🎯</div>
-                  <p style={{ fontSize: '0.9rem' }}>Your guesses will show up here.</p>
-                </div>
-              ) : game.guesses.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--c-text-muted)', fontSize: '0.9rem' }}>
-                  Make your first guess to see hints.
-                </div>
-              ) : (
-                <div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--c-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
-                    Guess history
+              <div className="guess-play-body">
+                <div className="guess-history-section">
+                  <div className="guess-history-heading">Guess history</div>
+                  <div className="guess-history-scroll">
+                    {!game || game.guesses.length === 0 ? (
+                      <div className="guess-history-empty">
+                        {!game
+                          ? 'Your guesses will show up here.'
+                          : 'Make your first guess to see hints.'}
+                      </div>
+                    ) : (
+                      <ul className="guess-history">
+                        {[...game.guesses].reverse().map((g, i) => (
+                          <li key={`${g.value}-${game.guesses.length - i}`}>
+                            <span style={{ fontWeight: 700 }}>{g.value}</span>
+                            <span className={`hint-${g.hint}`}>{hintLabel(g.hint)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
-                  <ul className="guess-history">
-                    {[...game.guesses].reverse().map((g, i) => (
-                      <li key={i}>
-                        <span style={{ fontWeight: 700 }}>{g.value}</span>
-                        <span className={`hint-${g.hint}`}>{hintLabel(g.hint)}</span>
-                      </li>
-                    ))}
-                  </ul>
                 </div>
-              )}
+              </div>
 
               {game?.gameId && (
                 <p style={{ textAlign: 'center', marginTop: 'auto', fontSize: '0.7rem', color: 'var(--c-text-muted)' }}>
